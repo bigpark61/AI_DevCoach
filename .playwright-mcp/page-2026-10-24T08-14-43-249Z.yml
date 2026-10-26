@@ -1,0 +1,109 @@
+- generic [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - banner [ref=f2e3]:
+      - link "AI DevCoach 홈" [ref=f2e4] [cursor=pointer]:
+        - /url: /
+        - generic [ref=f2e5]: ⌘
+        - generic [ref=f2e6]: AI DevCoach
+      - navigation "학습 진도 메뉴" [ref=f2e199]:
+        - button "대시보드" [ref=f2e200] [cursor=pointer]
+        - button "과제 관리" [ref=f2e201] [cursor=pointer]
+        - button "학습 통계" [ref=f2e202] [cursor=pointer]
+        - button "학습 코칭" [ref=f2e203] [cursor=pointer]
+        - button "로그아웃" [ref=f2e204] [cursor=pointer]
+    - main [ref=f2e14]:
+      - generic [ref=f2e205]:
+        - generic [ref=f2e206]: 과제 관리
+        - heading "주차별 학습 현황" [level=1] [ref=f2e207]
+        - paragraph [ref=f2e208]: 주차를 선택하고 과제별 수행 내용과 실제 학습시간을 기록합니다.
+        - tablist "학습 주차" [ref=f2e209]:
+          - tab "1주차" [selected] [ref=f2e210] [cursor=pointer]
+          - tab "2주차" [ref=f2e211] [cursor=pointer]
+          - tab "3주차" [ref=f2e212] [cursor=pointer]
+          - tab "4주차" [ref=f2e213] [cursor=pointer]
+        - generic [ref=f2e214]:
+          - generic [ref=f2e215]:
+            - text: 1주차 목표
+            - heading "API·데이터 처리 역량을 활용해 AI DevCoach progress management의 1주차 목표 달성" [level=2] [ref=f2e216]
+          - generic [ref=f2e217]: 0/2 완료
+        - paragraph [ref=f2e218]: 계획 8.0시간 · 실제 0.5시간
+        - generic [ref=f2e219]:
+          - 'button "진행 중 프로젝트 실습: API와 JSON 데이터 처리 계획 4.0h · 실제 0.5h" [ref=f2e220] [cursor=pointer]':
+            - generic [ref=f2e221]: 진행 중
+            - generic [ref=f2e222]:
+              - strong [ref=f2e223]: "프로젝트 실습: API와 JSON 데이터 처리"
+              - generic [ref=f2e224]: 계획 4.0h · 실제 0.5h
+            - generic [aria-hidden] [ref=f2e225]: ›
+          - 'button "시작 전 개념과 실습 균형: Python 기초 문법 적용 계획 4.0h · 실제 0.0h" [ref=f2e226] [cursor=pointer]':
+            - generic [ref=f2e227]: 시작 전
+            - generic [ref=f2e228]:
+              - strong [ref=f2e229]: "개념과 실습 균형: Python 기초 문법 적용"
+              - generic [ref=f2e230]: 계획 4.0h · 실제 0.0h
+            - generic [aria-hidden] [ref=f2e231]: ›
+        - article [ref=f2e232]:
+          - generic [ref=f2e233]:
+            - generic [ref=f2e234]:
+              - text: 1주차 과제
+              - 'heading "프로젝트 실습: API와 JSON 데이터 처리" [level=2] [ref=f2e235]'
+            - generic [ref=f2e236]: 진행 중
+          - generic [ref=f2e237]:
+            - strong [ref=f2e238]: 완료 기준
+            - paragraph [ref=f2e239]: 정상 응답과 오류 응답을 구분해 처리
+            - text: "결과물: 외부 API를 사용하는 데이터 앱"
+          - generic [ref=f2e240]:
+            - generic [ref=f2e241]:
+              - generic [ref=f2e242]: 과제 상태
+              - combobox "과제 상태" [ref=f2e243]:
+                - option "시작 전"
+                - option "진행 중" [selected]
+                - option "보류"
+            - generic [ref=f2e244]:
+              - generic [ref=f2e245]: 학습 시작일
+              - textbox "학습 시작일" [ref=f2e246]
+            - generic [ref=f2e247]:
+              - generic [ref=f2e248]: 학습 내용
+              - textbox "학습 내용" [ref=f2e249]
+            - generic [ref=f2e250]:
+              - generic [ref=f2e251]: 어려웠던 점
+              - textbox "어려웠던 점" [ref=f2e252]
+            - generic [ref=f2e253]:
+              - generic [ref=f2e254]: 학습자 메모
+              - textbox "학습자 메모" [ref=f2e255]
+            - button "과제 기록 저장" [ref=f2e256] [cursor=pointer]
+          - generic [ref=f2e257]:
+            - heading "학습시간 기록" [level=3] [ref=f2e258]
+            - generic [ref=f2e259]:
+              - generic [ref=f2e260]:
+                - generic [ref=f2e261]: 학습 날짜
+                - textbox "학습 날짜" [ref=f2e262]: 2026-10-24
+              - generic [ref=f2e263]:
+                - generic [ref=f2e264]: 실제 학습시간 (분)
+                - spinbutton "실제 학습시간 (분)" [active] [ref=f2e265]: "30"
+            - generic [ref=f2e266]:
+              - generic [ref=f2e267]: 학습 메모
+              - textbox "학습 메모" [ref=f2e268]: UI integration check
+            - button "시간 수정 저장" [ref=f2e291] [cursor=pointer]
+            - paragraph [ref=f2e270]: "누적 실제 학습시간: 0.5시간"
+            - generic [ref=f2e272]:
+              - generic [ref=f2e273]:
+                - strong [ref=f2e274]: 2026-10-24 · 30분
+                - generic [ref=f2e275]: UI integration check
+              - button "수정" [ref=f2e276] [cursor=pointer]
+          - generic [ref=f2e277]:
+            - heading "결과물 제출" [level=3] [ref=f2e278]
+            - generic [ref=f2e279]:
+              - generic [ref=f2e280]: GitHub URL (선택)
+              - textbox "GitHub URL (선택)" [ref=f2e281]:
+                - /placeholder: https://github.com/username/repository
+            - generic [ref=f2e282]:
+              - generic [ref=f2e283]: 학습 결과 설명
+              - textbox "학습 결과 설명" [ref=f2e284]:
+                - /placeholder: 구현한 내용이나 결과를 기록해 주세요.
+            - button "결과물 제출" [ref=f2e285] [cursor=pointer]
+          - generic [ref=f2e286]:
+            - generic [ref=f2e287]:
+              - checkbox "위 완료 기준을 확인했고 과제를 완료했습니다." [ref=f2e288]
+              - generic [ref=f2e289]: 위 완료 기준을 확인했고 과제를 완료했습니다.
+            - button "완료 요청" [ref=f2e290] [cursor=pointer]
+    - contentinfo [ref=f2e76]: 학습 추천을 위한 진단입니다. 공인 자격이나 기술 인증을 제공하지 않습니다.
+  - status: 학습시간을 기록했습니다.

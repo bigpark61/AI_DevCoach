@@ -1,0 +1,20 @@
+- generic [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - banner [ref=f2e3]:
+      - link "AI DevCoach 홈" [ref=f2e4] [cursor=pointer]:
+        - /url: /
+        - generic [ref=f2e5]: ⌘
+        - generic [ref=f2e6]: AI DevCoach
+      - navigation "학습 진도 메뉴" [ref=f2e8]:
+        - button "대시보드" [ref=f2e9] [cursor=pointer]
+        - button "과제 관리" [active] [ref=f2e10] [cursor=pointer]
+        - button "학습 통계" [ref=f2e11] [cursor=pointer]
+        - button "학습 코칭" [ref=f2e12] [cursor=pointer]
+        - button "로그아웃" [ref=f2e13] [cursor=pointer]
+    - main [ref=f2e14]:
+      - generic [ref=f2e77]:
+        - heading "진도를 불러오지 못했습니다" [level=2] [ref=f2e78]
+        - paragraph [ref=f2e79]: 로그인이 필요합니다.
+        - button "다시 시도" [ref=f2e80] [cursor=pointer]
+    - contentinfo [ref=f2e76]: 학습 추천을 위한 진단입니다. 공인 자격이나 기술 인증을 제공하지 않습니다.
+  - status: Failed to fetch

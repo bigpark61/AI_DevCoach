@@ -1,0 +1,45 @@
+- generic [active] [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - banner [ref=f1e3]:
+      - link "AI DevCoach 홈" [ref=f1e4] [cursor=pointer]:
+        - /url: /
+        - generic [ref=f1e5]: ⌘
+        - generic [ref=f1e6]: AI DevCoach
+      - navigation "학습 진도 메뉴" [ref=f1e81]:
+        - button "대시보드" [ref=f1e82] [cursor=pointer]
+        - button "과제 관리" [ref=f1e83] [cursor=pointer]
+        - button "학습 통계" [ref=f1e84] [cursor=pointer]
+        - button "학습 코칭" [ref=f1e85] [cursor=pointer]
+        - button "로그아웃" [ref=f1e86] [cursor=pointer]
+    - main [ref=f1e7]:
+      - generic [ref=f1e87]:
+        - generic [ref=f1e88]: 과제 관리
+        - heading "주차별 학습 현황" [level=1] [ref=f1e89]
+        - paragraph [ref=f1e90]: 주차를 선택하고 과제별 수행 내용과 실제 학습시간을 기록합니다.
+        - tablist "학습 주차" [ref=f1e91]:
+          - tab "1주차" [selected] [ref=f1e92] [cursor=pointer]
+          - tab "2주차" [ref=f1e93] [cursor=pointer]
+          - tab "3주차" [ref=f1e94] [cursor=pointer]
+          - tab "4주차" [ref=f1e95] [cursor=pointer]
+        - generic [ref=f1e96]:
+          - generic [ref=f1e97]:
+            - text: 1주차 목표
+            - heading "API·데이터 처리 역량을 활용해 AI DevCoach progress management의 1주차 목표 달성" [level=2] [ref=f1e98]
+          - generic [ref=f1e99]: 0/2 완료
+        - paragraph [ref=f1e100]: 계획 8.0시간 · 실제 0.0시간
+        - generic [ref=f1e101]:
+          - 'button "시작 전 프로젝트 실습: API와 JSON 데이터 처리 계획 4.0h · 실제 0.0h" [ref=f1e102] [cursor=pointer]':
+            - generic [ref=f1e103]: 시작 전
+            - generic [ref=f1e104]:
+              - strong [ref=f1e105]: "프로젝트 실습: API와 JSON 데이터 처리"
+              - generic [ref=f1e106]: 계획 4.0h · 실제 0.0h
+            - generic [aria-hidden] [ref=f1e107]: ›
+          - 'button "시작 전 개념과 실습 균형: Python 기초 문법 적용 계획 4.0h · 실제 0.0h" [ref=f1e108] [cursor=pointer]':
+            - generic [ref=f1e109]: 시작 전
+            - generic [ref=f1e110]:
+              - strong [ref=f1e111]: "개념과 실습 균형: Python 기초 문법 적용"
+              - generic [ref=f1e112]: 계획 4.0h · 실제 0.0h
+            - generic [aria-hidden] [ref=f1e113]: ›
+        - generic [ref=f1e114]: 과제를 선택하면 상세 기록과 완료 기준을 확인할 수 있습니다.
+    - contentinfo [ref=f1e12]: 학습 추천을 위한 진단입니다. 공인 자격이나 기술 인증을 제공하지 않습니다.
+  - status

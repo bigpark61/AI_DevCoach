@@ -1,0 +1,11 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - link "AI DevCoach 홈" [ref=e4] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e5]: ⌘
+        - generic [ref=e6]: AI DevCoach
+    - main [ref=e7]:
+      - paragraph [ref=e11]: 학습 진도를 불러오고 있어요
+    - contentinfo [ref=e12]: 학습 추천을 위한 진단입니다. 공인 자격이나 기술 인증을 제공하지 않습니다.
+  - status

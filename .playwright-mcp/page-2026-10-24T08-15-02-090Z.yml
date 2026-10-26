@@ -1,0 +1,73 @@
+- generic [active] [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - banner [ref=f2e3]:
+      - link "AI DevCoach 홈" [ref=f2e4] [cursor=pointer]:
+        - /url: /
+        - generic [ref=f2e5]: ⌘
+        - generic [ref=f2e6]: AI DevCoach
+      - navigation "학습 진도 메뉴" [ref=f2e292]:
+        - button "대시보드" [ref=f2e293] [cursor=pointer]
+        - button "과제 관리" [ref=f2e294] [cursor=pointer]
+        - button "학습 통계" [ref=f2e295] [cursor=pointer]
+        - button "학습 코칭" [ref=f2e296] [cursor=pointer]
+        - button "로그아웃" [ref=f2e297] [cursor=pointer]
+    - main [ref=f2e14]:
+      - generic [ref=f2e298]:
+        - generic [ref=f2e299]: 학습 통계
+        - heading "학습 기록과 통계" [level=1] [ref=f2e300]
+        - paragraph [ref=f2e301]: AI DevCoach progress management의 실적을 누적 기록 기준으로 확인합니다.
+        - generic [ref=f2e302]:
+          - generic [ref=f2e303]:
+            - generic [ref=f2e304]: 과제 완료율
+            - strong [ref=f2e305]: 0%
+            - generic [ref=f2e306]: 0/8개 완료
+          - generic [ref=f2e307]:
+            - generic [ref=f2e308]: 학습시간 달성률
+            - strong [ref=f2e309]: 1.6%
+            - generic [ref=f2e310]: 실제 0.5h / 계획 32.0h
+          - generic [ref=f2e311]:
+            - generic [ref=f2e312]: 결과물 제출률
+            - strong [ref=f2e313]: 0%
+            - generic [ref=f2e314]: 0/8개 제출
+          - generic [ref=f2e315]:
+            - generic [ref=f2e316]: 학습 연속일
+            - strong [ref=f2e317]: 1일
+            - generic [ref=f2e318]: 학습시간 기록 기준
+        - generic [ref=f2e319]:
+          - generic [ref=f2e320]:
+            - strong [ref=f2e321]: 주차별 실적
+            - generic [ref=f2e322]: 계획 대비 실제
+          - generic [ref=f2e324]:
+            - generic [ref=f2e325]: 1주차 · 0/2 완료
+            - generic [ref=f2e326]: 0.5h / 8.0h
+          - generic [ref=f2e329]:
+            - generic [ref=f2e330]: 2주차 · 0/2 완료
+            - generic [ref=f2e331]: 0.0h / 8.0h
+          - generic [ref=f2e334]:
+            - generic [ref=f2e335]: 3주차 · 0/2 완료
+            - generic [ref=f2e336]: 0.0h / 8.0h
+          - generic [ref=f2e339]:
+            - generic [ref=f2e340]: 4주차 · 0/2 완료
+            - generic [ref=f2e341]: 0.0h / 8.0h
+          - paragraph [ref=f2e343]: "완료 과제 평균 수행시간: 0.0시간"
+        - generic [ref=f2e345]:
+          - generic [ref=f2e346]: 최근 활동
+          - heading "학습 이력" [level=2] [ref=f2e347]
+        - generic [ref=f2e348]:
+          - article [ref=f2e349]:
+            - generic [ref=f2e351]:
+              - strong [ref=f2e352]: 학습시간 기록
+              - paragraph [ref=f2e353]: "1주차 · 프로젝트 실습: API와 JSON 데이터 처리"
+              - text: 2026. 10. 24. 오후 5:14:35
+          - article [ref=f2e354]:
+            - generic [ref=f2e356]:
+              - strong [ref=f2e357]: 과제 상태 변경
+              - paragraph [ref=f2e358]: "1주차 · 프로젝트 실습: API와 JSON 데이터 처리"
+              - text: 2026. 10. 24. 오후 5:09:50
+        - generic [ref=f2e359]:
+          - generic [ref=f2e360]:
+            - text: 다음 행동
+            - paragraph [ref=f2e361]: 현재 기록을 바탕으로 다음 학습 행동을 확인해 보세요.
+          - button "학습 코칭 보기" [ref=f2e362] [cursor=pointer]
+    - contentinfo [ref=f2e76]: 학습 추천을 위한 진단입니다. 공인 자격이나 기술 인증을 제공하지 않습니다.
+  - status: 학습시간을 기록했습니다.
