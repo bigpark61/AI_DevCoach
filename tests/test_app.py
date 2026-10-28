@@ -1,3 +1,4 @@
+import base64
 import json
 import os
 import tempfile
@@ -101,6 +102,67 @@ class DevCoachFlowTests(unittest.TestCase):
         self.assertEqual(invalid.status_code, 422)
         self.assertEqual(self.profile().status_code, 201)
         self.assertEqual(self.client.get("/api/profiles/me").json()["weekly_hours"], 8)
+
+    def test_github_analysis_collects_public_evidence_and_saves_private_history(self):
+        self.signup()
+
+        def fake_github_get(_client, path, **kwargs):
+            if path == "/repos/learner/demo":
+                return {
+                    "id": 12, "full_name": "learner/demo", "description": "A demo project",
+                    "html_url": "https://github.com/learner/demo", "default_branch": "main",
+                    "private": False, "stargazers_count": 2, "updated_at": "2026-10-25T00:00:00Z",
+                }
+            if path.endswith("/branches/main"):
+                return {"commit": {"sha": "abc123456789"}}
+            if "/git/trees/" in path:
+                return {"truncated": False, "tree": [
+                    {"path": "README.md", "type": "blob", "size": 200},
+                    {"path": "main.py", "type": "blob", "size": 80},
+                    {"path": "tests/test_main.py", "type": "blob", "size": 40},
+                ]}
+            if path.endswith("/readme"):
+                readme = "# Demo\n\n## Features\n\n## Tech Stack\n\n## Installation and Usage\n\n## Environment Variables\n\n## API example\n\n## Tests\n\nAPI_KEY=demo-secret-value-123456"
+                return {"encoding": "base64", "content": base64.b64encode(readme.encode()).decode()}
+            if path.endswith("/languages"):
+                return {"Python": 500}
+            if path.endswith("/commits"):
+                return [{"sha": "abc123456789", "html_url": "https://github.com/learner/demo/commit/abc123", "commit": {
+                    "message": "Add demo API", "author": {"name": "Learner", "date": "2026-10-25T00:00:00Z"},
+                }}]
+            if "/contents/" in path:
+                return {"encoding": "base64", "content": base64.b64encode(b"def app(): return True").decode()}
+            self.fail(f"Unexpected GitHub API path: {path} {kwargs}")
+
+        with patch("backend.main._github_get", side_effect=fake_github_get), patch.dict(os.environ, {"OPENAI_API_KEY": ""}):
+            response = self.client.post(
+                "/api/github/analyses",
+                json={"repo_url": "https://github.com/learner/demo", "task_criteria": "Add API routes"},
+            )
+        self.assertEqual(response.status_code, 201, response.text)
+        result = response.json()
+        self.assertEqual(result["commit_sha"], "abc123456789")
+        self.assertEqual(result["analysis_source"], "rules")
+        self.assertEqual(result["tech_stack"], ["Python"])
+        self.assertTrue(result["readme"]["present"])
+        self.assertNotIn("demo-secret-value-123456", result["readme"]["excerpt"])
+        self.assertIn("[REDACTED]", result["readme"]["excerpt"])
+        self.assertEqual(result["analyzed_source_files"], ["main.py", "tests/test_main.py"])
+        self.assertEqual(result["review"]["task_verification"], "needs_review")
+        self.assertEqual(self.client.get("/api/github/analyses").json()[0]["id"], result["id"])
+        self.assertEqual(self.client.get(f"/api/github/analyses/{result['id']}").json()["commit_sha"], result["commit_sha"])
+
+        self.client.post("/api/auth/logout")
+        self.signup("other@example.com")
+        self.assertEqual(self.client.get(f"/api/github/analyses/{result['id']}").status_code, 404)
+        self.assertEqual(self.client.get("/api/github/analyses").json(), [])
+
+    def test_github_analysis_rejects_non_repository_urls_before_api_access(self):
+        self.signup()
+        with patch("backend.main._github_get") as github_get:
+            response = self.client.post("/api/github/analyses", json={"repo_url": "https://example.com/owner/repo"})
+        self.assertEqual(response.status_code, 422)
+        github_get.assert_not_called()
 
     def test_assessment_saves_resumes_scores_and_personalizes_plan(self):
         self.signup()

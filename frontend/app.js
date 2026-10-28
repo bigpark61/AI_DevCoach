@@ -4,7 +4,7 @@ const toast = document.querySelector("#toast");
 
 const SKILLS = ["Python 기초", "API·데이터 처리", "Git·GitHub", "LLM·AI Agent 활용", "코드 이해·오류 분석"];
 const INTERESTS = ["Python", "HTML/CSS", "Git/GitHub", "JavaScript", "FastAPI", "LLM API", "RAG", "AI Agent"];
-const state = { user: null, questions: [], assessmentId: null, answers: {}, assessmentResult: null, profile: null, plan: null, progress: null, progressView: "dashboard", selectedWeek: 1, selectedTask: null, taskDetail: null, progressStats: null, activityRows: [], coachFeedback: null };
+const state = { user: null, questions: [], assessmentId: null, answers: {}, assessmentResult: null, profile: null, plan: null, progress: null, progressView: "dashboard", selectedWeek: 1, selectedTask: null, taskDetail: null, progressStats: null, activityRows: [], coachFeedback: null, githubAnalyses: [], githubResult: null };
 
 function escapeHtml(value = "") {
   return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
@@ -530,7 +530,7 @@ async function renderDashboard() {
 }
 
 function progressNavigation(activeView) {
-  setHeader(`<nav class="progress-nav" aria-label="학습 메뉴">${[["dashboard", "대시보드"], ["tasks", "과제 관리"], ["history", "학습 통계"], ["coach", "학습 코칭"]].map(([view, label]) => `<button class="${view === activeView ? "active" : ""}" data-progress-view="${view}" aria-current="${view === activeView ? "page" : "false"}">${label}</button>`).join("")}<button class="account-link" id="assessment-intro">수준 진단</button><button class="account-link" id="assessment-results">진단 결과</button><button class="account-link" id="logout-action">로그아웃</button></nav>`);
+  setHeader(`<nav class="progress-nav" aria-label="학습 메뉴">${[["dashboard", "대시보드"], ["tasks", "과제 관리"], ["history", "학습 통계"], ["coach", "학습 코칭"], ["github", "GitHub 분석"]].map(([view, label]) => `<button class="${view === activeView ? "active" : ""}" data-progress-view="${view}" aria-current="${view === activeView ? "page" : "false"}">${label}</button>`).join("")}<button class="account-link" id="assessment-intro">수준 진단</button><button class="account-link" id="assessment-results">진단 결과</button><button class="account-link" id="logout-action">로그아웃</button></nav>`);
   document.querySelectorAll("[data-progress-view]").forEach((button) => button.addEventListener("click", () => openProgressView(button.dataset.progressView)));
   document.querySelector("#assessment-intro").addEventListener("click", renderAssessmentIntro);
   document.querySelector("#assessment-results").addEventListener("click", openAssessmentResults);
@@ -540,6 +540,17 @@ function progressNavigation(activeView) {
 async function openProgressView(view) {
   state.progressView = view;
   state.taskDetail = null;
+  if (view === "github") {
+    setLoading("GitHub 분석 이력을 불러오고 있어요");
+    try {
+      state.githubAnalyses = await api("/api/github/analyses");
+      renderGithubAnalysis();
+    } catch (err) {
+      main.innerHTML = `<section class="narrow card center"><h2>GitHub 분석을 불러오지 못했습니다</h2><p class="muted">${escapeHtml(err.message)}</p><button id="retry-github" class="btn">다시 시도</button></section>`;
+      document.querySelector("#retry-github").addEventListener("click", () => openProgressView("github"));
+    }
+    return;
+  }
   setLoading("학습 진도를 불러오고 있어요");
   try {
     state.progress = await api("/api/progress/dashboard");
@@ -560,6 +571,73 @@ async function openProgressView(view) {
     main.innerHTML = `<section class="narrow card center"><h2>진도를 불러오지 못했습니다</h2><p class="muted">${escapeHtml(err.message)}</p><button id="retry-progress" class="btn">다시 시도</button></section>`;
     document.querySelector("#retry-progress").addEventListener("click", () => openProgressView(view));
   }
+}
+
+function renderGithubAnalysis() {
+  progressNavigation("github");
+  const result = state.githubResult;
+  const history = state.githubAnalyses;
+  const review = result?.review;
+  const statusLabels = {
+    fulfilled: "충족 가능", partially_fulfilled: "일부 충족", needs_review: "추가 검증 필요", cannot_assess: "확인 불가",
+  };
+  main.innerHTML = `
+    <section class="progress-page github-page">
+      <div class="eyebrow">프로젝트 증거 기반 분석</div><h1>GitHub 프로젝트 분석</h1>
+      <p class="subtitle">공개 저장소의 구조, 문서, 최근 커밋을 확인합니다. 정적 분석은 실행 동작이나 과제 완료를 확정하지 않습니다.</p>
+      <form id="github-analysis-form" class="github-form">
+        <div id="github-analysis-error" class="error"></div>
+        <div class="field"><label for="github-repo-url">GitHub 저장소 URL</label><input id="github-repo-url" name="repo_url" type="url" placeholder="https://github.com/owner/repository" required maxlength="500" /></div>
+        <div class="form-columns">
+          <div class="field"><label for="github-branch">Branch <span class="muted">(비우면 기본 Branch)</span></label><input id="github-branch" name="branch" maxlength="255" placeholder="main" /></div>
+          <div class="field"><label for="github-task-criteria">연계 과제 완료 기준 <span class="muted">(선택)</span></label><input id="github-task-criteria" name="task_criteria" maxlength="2000" placeholder="예: GET·POST API 구현" /></div>
+        </div>
+        <button class="btn" type="submit">저장소 분석</button>
+        <p class="tiny muted">MVP는 공개 저장소를 대상으로 합니다. 분석 시 README와 최대 3개의 핵심 소스 파일만 선택하며, 탐지된 비밀정보 포함 파일은 AI 입력에서 제외합니다.</p>
+      </form>
+      ${result ? `
+        <section class="github-report" aria-live="polite">
+          <div class="github-report-heading"><div><div class="eyebrow">${result.analysis_source === "openai" ? "AI 분석" : "규칙 기반 분석"}</div><h2><a href="${escapeHtml(result.repository.html_url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(result.repository.full_name)}</a></h2><p class="muted">${escapeHtml(result.repository.description || "저장소 설명이 없습니다.")}</p></div><button class="text-button" id="clear-github-result">결과 닫기</button></div>
+          <div class="github-meta"><span>${escapeHtml(result.repository.branch)} Branch</span><span>기준 SHA <code>${escapeHtml(result.commit_sha.slice(0, 12))}</code></span><span>${new Date(result.created_at).toLocaleString("ko-KR")}</span></div>
+          <div class="progress-kpis github-kpis"><div class="progress-kpi"><span>파일</span><strong>${result.file_count}</strong><small>${result.tree_truncated ? "목록 일부" : "수집 완료"}</small></div><div class="progress-kpi"><span>기술 스택</span><strong>${result.tech_stack.length}</strong><small>${result.tech_stack.map(escapeHtml).join(" · ") || "확인 불가"}</small></div><div class="progress-kpi"><span>최근 커밋</span><strong>${result.commits.length}</strong><small>최근 최대 10건 · 품질 점수 아님</small></div><div class="progress-kpi"><span>과제 검증</span><strong class="github-status">${escapeHtml(statusLabels[review.task_verification])}</strong><small>${escapeHtml(review.task_feedback)}</small></div></div>
+          <section class="github-section"><div class="step-meta"><h3>프로젝트 진단</h3><span>${escapeHtml(review.summary)}</span></div>${review.strengths.length ? `<ul class="github-list">${review.strengths.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}${review.implemented_features.length ? `<h4>확인된 구현 단서</h4><ul class="github-list">${review.implemented_features.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : ""}${review.findings.length ? `<h4>개선 제안</h4><div class="github-findings">${review.findings.map((item) => `<article class="github-finding"><div class="step-meta"><strong>${escapeHtml(item.category)}</strong><span class="finding-severity severity-${item.severity}">${escapeHtml(item.severity)}</span></div><p>${escapeHtml(item.description)}</p><p class="muted">${escapeHtml(item.recommendation)}</p>${item.evidence_files.length ? `<small>근거 파일: ${item.evidence_files.map(escapeHtml).join(", ")}</small>` : `<small>파일 근거를 특정하지 못했습니다.</small>`}</article>`).join("")}</div>` : `<p class="muted">수집한 정적 증거에서 등록된 개선 항목이 없습니다.</p>`}</section>
+          <section class="github-section"><div class="step-meta"><h3>README 평가</h3><strong>${result.readme.present ? `${result.readme.score} / 100` : "README 없음"}</strong></div>${result.readme.present ? `<div class="readme-checks">${result.readme.sections.map((item) => `<div><span class="${item.met ? "check-met" : "check-missing"}" aria-label="${item.met ? "확인됨" : "보완 필요"}">${item.met ? "✓" : "!"}</span><span>${escapeHtml(item.name)}</span><small>${item.points}점</small></div>`).join("")}</div><details><summary>README 발췌</summary><pre class="code-block">${escapeHtml(result.readme.excerpt)}</pre></details>` : `<p class="muted">README 파일을 찾지 못했습니다. 기능 및 실행 안내를 추가해 보세요.</p>`}</section>
+          <section class="github-section"><div class="step-meta"><h3>기술 스택</h3><span>저장소 파일 및 GitHub 언어 데이터</span></div><div class="tag-list github-tags">${Object.entries(result.languages).map(([name, bytes]) => `<span class="pill">${escapeHtml(name)} · ${Number(bytes).toLocaleString()} B</span>`).join("")}${result.tech_stack.map((name) => `<span class="pill">${escapeHtml(name)}</span>`).join("")}</div></section>
+          <section class="github-section"><div class="step-meta"><h3>프로젝트 구조</h3><span>${result.files.length}개 경로 표시${result.tree_truncated ? " · 결과 제한됨" : ""}</span></div><div class="github-file-list">${result.files.slice(0, 100).map((path) => `<code>${escapeHtml(path)}</code>`).join("")}</div><p class="tiny muted">분석 대상 Commit: ${escapeHtml(result.commit_sha)} · AI 입력 파일: ${result.analyzed_source_files.map(escapeHtml).join(", ") || "없음"}</p></section>
+          <section class="github-section"><div class="step-meta"><h3>최근 커밋</h3><span>최대 10건 · 개발 활동 참고 지표</span></div><div class="github-commits">${result.commits.map((item) => `<div><span><strong>${escapeHtml(item.message)}</strong><small>${escapeHtml(item.author)} · ${item.committed_at ? new Date(item.committed_at).toLocaleDateString("ko-KR") : "날짜 확인 불가"}</small></span><code>${escapeHtml((item.sha || "").slice(0, 8))}</code></div>`).join("") || `<p class="muted">커밋을 확인할 수 없습니다.</p>`}</div></section>
+        </section>` : ""}
+      <section class="github-history"><div class="step-meta"><h2>분석 이력</h2><span>최신 20건</span></div>${history.length ? `<div class="github-history-list">${history.map((item) => `<button data-github-analysis-id="${escapeHtml(item.id)}"><span><strong>${escapeHtml(item.owner)}/${escapeHtml(item.repo_name)}</strong><small>${escapeHtml(item.branch)} · ${new Date(item.created_at).toLocaleString("ko-KR")}</small><small>${escapeHtml(item.summary)}</small></span><span aria-hidden="true">›</span></button>`).join("")}</div>` : `<p class="muted">저장된 분석이 없습니다.</p>`}</section>
+    </section>`;
+  document.querySelector("#clear-github-result")?.addEventListener("click", () => { state.githubResult = null; renderGithubAnalysis(); });
+  document.querySelectorAll("[data-github-analysis-id]").forEach((button) => button.addEventListener("click", async () => {
+    try {
+      state.githubResult = await api(`/api/github/analyses/${encodeURIComponent(button.dataset.githubAnalysisId)}`);
+      renderGithubAnalysis();
+    } catch (err) { showToast(err.message); }
+  }));
+  document.querySelector("#github-analysis-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const button = event.currentTarget.querySelector("button[type=submit]");
+    button.disabled = true;
+    button.textContent = "GitHub 데이터 수집 및 분석 중...";
+    try {
+      state.githubResult = await api("/api/github/analyses", {
+        method: "POST",
+        body: JSON.stringify({
+          repo_url: form.get("repo_url"),
+          branch: form.get("branch"),
+          task_criteria: form.get("task_criteria"),
+        }),
+      });
+      state.githubAnalyses = await api("/api/github/analyses");
+      renderGithubAnalysis();
+    } catch (err) {
+      button.disabled = false;
+      button.textContent = "저장소 분석";
+      setError("github-analysis-error", err.message);
+    }
+  });
 }
 
 function renderProgressDashboard() {

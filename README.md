@@ -84,3 +84,11 @@ git push -u origin main
 ```
 
 Before committing, confirm that `.env`, `.venv`, and `data/devcoach.db` are not listed by `git status`. They are excluded by `.gitignore`. If the GitHub repository already contains commits, do not force-push; first fetch and integrate its existing history.
+
+## GitHub analysis v2 validation and collaboration
+
+- [GitHub analysis v2 validation record (Korean)](docs/testing/2026-10-28-github-analysis.md): source provenance, test results, and remaining manual checks.
+- [Step-by-step collaboration guide (Korean)](docs/collaboration-guide-ko.md): Windows setup, commits, pull requests, and teammate review.
+
+For the default SQLite setup, start without a `.env` file. Do not copy the placeholder PostgreSQL URLs from `.env.example` into `.env` unless you replace them with working connection settings. GitHub analysis without an OpenAI key uses rule-based feedback; actual written-answer AI grading still requires an OpenAI key.
+
