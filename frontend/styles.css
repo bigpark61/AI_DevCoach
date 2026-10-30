@@ -104,7 +104,7 @@ textarea { min-height: 112px; resize: vertical; line-height: 1.6; }
 .spinner { width: 22px; height: 22px; border: 2px solid #334257; border-top-color: var(--blue); border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-.progress-nav { display: flex; align-items: center; gap: 5px; }
+.progress-nav { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 5px; }
 .progress-nav button:not(.account-link) { min-height: 34px; border: 0; border-radius: 8px; padding: 0 12px; color: var(--muted); background: transparent; font-size: 12px; }
 .progress-nav button.active { color: #e7f2ff; background: #1c2b3d; }
 .progress-page { max-width: 900px; margin: 0 auto; }
@@ -178,6 +178,53 @@ textarea { min-height: 112px; resize: vertical; line-height: 1.6; }
 .coach-panel ul { display: grid; gap: 8px; padding-left: 20px; color: #cbd7e6; font-size: 13px; }
 .coach-panel small { color: var(--muted); font-size: 11px; }
 .progress-page a { color: #9bcaff; }
+.github-form { display: grid; gap: 15px; padding: 20px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.github-form .btn { justify-self: start; }
+.github-report { margin-top: 32px; }
+.github-report-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.github-report-heading h2 { margin: 6px 0; overflow-wrap: anywhere; }
+.github-report-heading h2 a { color: #dceaff; text-decoration-color: #52779e; text-underline-offset: 4px; }
+.github-report-heading p { margin-bottom: 0; }
+.github-meta { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+.github-meta code, .github-commits code { color: #b8d9ff; font: 11px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.github-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; }
+.github-kpis .progress-kpi { padding: 15px 12px; }
+.github-kpis .progress-kpi strong { font-size: 21px; overflow-wrap: anywhere; }
+.github-kpis .progress-kpi small { line-height: 1.5; overflow-wrap: anywhere; }
+.github-status { font-size: 15px !important; }
+.github-section, .github-history { padding: 20px 0; border-bottom: 1px solid var(--line); }
+.github-section h3, .github-history h2 { margin: 0; font-size: 16px; }
+.github-section h4 { margin: 18px 0 8px; font-size: 13px; }
+.github-section .step-meta { align-items: baseline; gap: 16px; }
+.github-section .step-meta span { text-align: right; }
+.github-list { display: grid; gap: 7px; padding-left: 19px; color: #cbd7e6; font-size: 13px; line-height: 1.55; }
+.github-findings { display: grid; gap: 12px; }
+.github-finding { padding: 12px 14px; border-left: 2px solid #55789c; background: rgba(20,30,43,.55); }
+.github-finding p { margin: 8px 0; font-size: 13px; line-height: 1.55; }
+.github-finding small { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
+.finding-severity { text-transform: uppercase; font-size: 10px; }
+.severity-high { color: #ff9ca4; }
+.severity-medium { color: #f0c77b; }
+.severity-low { color: #8cd8b8; }
+.readme-checks { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; margin: 12px 0; }
+.readme-checks > div { display: grid; grid-template-columns: 20px 1fr auto; align-items: center; gap: 8px; padding: 9px 0; border-bottom: 1px solid rgba(41,53,69,.65); font-size: 12px; }
+.readme-checks small { color: var(--muted); }
+.check-met { color: var(--green); }
+.check-missing { color: #f0c77b; }
+.github-tags { display: flex; flex-wrap: wrap; margin-top: 12px; }
+.github-file-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px 16px; max-height: 280px; overflow: auto; margin: 12px 0; padding: 12px; border: 1px solid var(--line); background: rgba(8,13,20,.65); }
+.github-file-list code { min-width: 0; color: #c2cddd; font: 11px/1.5 ui-monospace, SFMono-Regular, Consolas, monospace; overflow-wrap: anywhere; }
+.github-commits > div { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 11px 0; border-bottom: 1px solid rgba(41,53,69,.65); }
+.github-commits > div > span { min-width: 0; display: grid; gap: 5px; }
+.github-commits strong { font-size: 12px; overflow-wrap: anywhere; }
+.github-commits small { color: var(--muted); font-size: 11px; }
+.github-history { margin-top: 26px; }
+.github-history-list { border-top: 1px solid var(--line); }
+.github-history-list button { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 13px 4px; border: 0; border-bottom: 1px solid var(--line); color: inherit; text-align: left; background: transparent; }
+.github-history-list button:hover { background: rgba(104,169,255,.06); }
+.github-history-list button > span:first-child { min-width: 0; display: grid; gap: 4px; }
+.github-history-list strong { font-size: 13px; }
+.github-history-list small { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
 
 @media (max-width: 620px) {
   .app-shell { width: min(100% - 24px, 980px); }
@@ -194,6 +241,12 @@ textarea { min-height: 112px; resize: vertical; line-height: 1.6; }
   .progress-nav { gap: 0; }
   .progress-nav button:not(.account-link) { padding: 0 7px; font-size: 11px; }
   .progress-nav .account-link { font-size: 12px; }
+  .topbar { height: auto; min-height: 76px; gap: 12px; }
+  .github-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .github-kpis .progress-kpi:nth-child(2) { border-right: 0; }
+  .github-kpis .progress-kpi:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+  .github-report-heading { flex-direction: column; }
+  .readme-checks, .github-file-list { grid-template-columns: 1fr; }
   .progress-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .progress-kpi:nth-child(2) { border-right: 0; }
   .progress-kpi:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
