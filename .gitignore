@@ -8,3 +8,4 @@ data/
 .pytest_cache/
 .neon
 node_modules/
+.vercel/
