@@ -4,6 +4,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from urllib.parse import parse_qs, urlparse
 from unittest.mock import patch
 
 import httpx
@@ -82,6 +83,81 @@ class DevCoachFlowTests(unittest.TestCase):
         logout = self.client.post("/api/auth/logout")
         self.assertEqual(logout.status_code, 204)
         self.assertEqual(self.client.get("/api/auth/me").status_code, 401)
+
+    def test_password_reset_changes_password_once_and_revokes_sessions(self):
+        self.signup()
+        with patch.dict(os.environ, {
+            "APP_BASE_URL": "http://testserver",
+            "SMTP_HOST": "smtp.example.com",
+            "SMTP_FROM": "coach@example.com",
+            "COOKIE_SECURE": "false",
+            "PASSWORD_RESET_DEV_MODE": "false",
+        }), patch("backend.main._send_password_reset_email") as send_email:
+            requested = self.client.post(
+                "/api/auth/password-reset-requests",
+                json={"email": "learner@example.com"},
+            )
+        self.assertEqual(requested.status_code, 200)
+        self.assertEqual(send_email.call_count, 1)
+        reset_url = send_email.call_args.args[1]
+        token = parse_qs(urlparse(reset_url).fragment)["reset_token"][0]
+
+        changed = self.client.post(
+            "/api/auth/password-resets",
+            json={"token": token, "password": "new-secure-password"},
+        )
+        self.assertEqual(changed.status_code, 200)
+        self.assertEqual(self.client.get("/api/auth/me").status_code, 401)
+        reused = self.client.post(
+            "/api/auth/password-resets",
+            json={"token": token, "password": "another-password"},
+        )
+        self.assertEqual(reused.status_code, 400)
+        old_login = self.client.post(
+            "/api/auth/login",
+            json={"email": "learner@example.com", "password": "correct-horse-42"},
+        )
+        self.assertEqual(old_login.status_code, 401)
+        new_login = self.client.post(
+            "/api/auth/login",
+            json={"email": "learner@example.com", "password": "new-secure-password"},
+        )
+        self.assertEqual(new_login.status_code, 200)
+
+    def test_password_reset_request_hides_account_existence(self):
+        self.signup()
+        with patch.dict(os.environ, {
+            "APP_BASE_URL": "http://testserver",
+            "SMTP_HOST": "smtp.example.com",
+            "SMTP_FROM": "coach@example.com",
+            "COOKIE_SECURE": "true",
+            "PASSWORD_RESET_DEV_MODE": "true",
+        }), patch("backend.main._send_password_reset_email") as send_email:
+            known = self.client.post(
+                "/api/auth/password-reset-requests",
+                json={"email": "learner@example.com"},
+            )
+            unknown = self.client.post(
+                "/api/auth/password-reset-requests",
+                json={"email": "missing@example.com"},
+            )
+        self.assertEqual(known.json(), unknown.json())
+        self.assertEqual(known.status_code, unknown.status_code)
+        self.assertEqual(send_email.call_count, 1)
+
+    def test_password_reset_dev_link_is_only_returned_when_enabled_for_local_http(self):
+        self.signup()
+        with patch.dict(os.environ, {
+            "APP_BASE_URL": "",
+            "COOKIE_SECURE": "false",
+            "PASSWORD_RESET_DEV_MODE": "true",
+        }, clear=False):
+            response = self.client.post(
+                "/api/auth/password-reset-requests",
+                json={"email": "learner@example.com"},
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(urlparse(response.json()["dev_reset_url"]).netloc, "testserver")
 
     def test_profile_validation_and_authentication(self):
         self.assertEqual(self.client.get("/api/profiles/me").status_code, 401)

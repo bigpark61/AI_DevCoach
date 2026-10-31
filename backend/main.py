@@ -7,9 +7,12 @@ import os
 import re
 import secrets
 import sqlite3
+import smtplib
 import base64
+import ssl
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
+from email.message import EmailMessage
 from pathlib import Path
 from typing import Any, Iterator, Literal
 from urllib.parse import quote, urlsplit
@@ -18,7 +21,7 @@ from uuid import uuid4
 import psycopg
 import httpx
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from openai import OpenAI, OpenAIError
@@ -150,6 +153,23 @@ class SignupInput(BaseModel):
 class LoginInput(BaseModel):
     email: str
     password: str
+
+
+class PasswordResetRequestInput(BaseModel):
+    email: str = Field(min_length=5, max_length=254)
+
+    @field_validator("email")
+    @classmethod
+    def valid_email(cls, value: str) -> str:
+        value = value.strip().lower()
+        if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", value):
+            raise ValueError("올바른 이메일 주소를 입력해 주세요.")
+        return value
+
+
+class PasswordResetInput(BaseModel):
+    token: str = Field(min_length=20, max_length=200)
+    password: str = Field(min_length=8, max_length=128)
 
 
 class ProfileInput(BaseModel):
@@ -545,6 +565,53 @@ def _verify_password(password: str, stored: str) -> bool:
         return False
 
 
+def _password_reset_dev_mode() -> bool:
+    return (
+        os.getenv("PASSWORD_RESET_DEV_MODE", "").lower() == "true"
+        and os.getenv("COOKIE_SECURE", "false").lower() != "true"
+    )
+
+
+def _send_password_reset_email(email: str, reset_url: str) -> None:
+    host = os.getenv("SMTP_HOST", "").strip()
+    sender = os.getenv("SMTP_FROM", "").strip()
+    if not host or not sender:
+        raise RuntimeError("SMTP_HOST and SMTP_FROM must be configured")
+
+    message = EmailMessage()
+    message["Subject"] = "AI DevCoach 비밀번호 재설정"
+    message["From"] = sender
+    message["To"] = email
+    message.set_content(
+        "비밀번호 재설정을 요청하셨습니다. 아래 링크에서 새 비밀번호를 설정해 주세요.\n\n"
+        f"{reset_url}\n\n"
+        "이 링크는 30분 동안 유효하며 한 번만 사용할 수 있습니다. 요청하지 않으셨다면 이 메일을 무시해 주세요."
+    )
+
+    port = int(os.getenv("SMTP_PORT", "587"))
+    username = os.getenv("SMTP_USERNAME", "").strip()
+    password = os.getenv("SMTP_PASSWORD", "")
+    context = ssl.create_default_context()
+    if os.getenv("SMTP_USE_SSL", "false").lower() == "true":
+        with smtplib.SMTP_SSL(host, port, timeout=10, context=context) as server:
+            if username:
+                server.login(username, password)
+            server.send_message(message)
+    else:
+        with smtplib.SMTP(host, port, timeout=10) as server:
+            server.starttls(context=context)
+            if username:
+                server.login(username, password)
+            server.send_message(message)
+
+
+def _deliver_password_reset_email(email: str, reset_url: str) -> None:
+    try:
+        _send_password_reset_email(email, reset_url)
+    except Exception:
+        logger.exception("Password reset email delivery failed")
+
+
 def _session_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
@@ -875,6 +942,15 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
                     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                     expires_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                    token_hash TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    created_at TEXT NOT NULL,
+                    expires_at TEXT NOT NULL,
+                    used_at TEXT
+                );
+                CREATE INDEX IF NOT EXISTS ix_password_reset_tokens_user
+                    ON password_reset_tokens(user_id);
                 CREATE TABLE IF NOT EXISTS profiles (
                     user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
                     nickname TEXT NOT NULL,
@@ -1225,6 +1301,78 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             max_age=SESSION_DAYS * 24 * 60 * 60, path="/",
         )
         return {"id": user["id"], "email": user["email"], "profile_completed": profile is not None}
+
+    @app.post("/api/auth/password-reset-requests")
+    def request_password_reset(
+        payload: PasswordResetRequestInput,
+        request: Request,
+        background_tasks: BackgroundTasks,
+    ) -> dict[str, Any]:
+        response_body = {
+            "message": "해당 이메일 주소로 계정이 존재하면 비밀번호 재설정 링크를 보냈습니다."
+        }
+        with connect() as db:
+            user = db.execute("SELECT id FROM users WHERE email=?", (payload.email,)).fetchone()
+            if user is not None:
+                token = secrets.token_urlsafe(32)
+                now = _utcnow()
+                db.execute("DELETE FROM password_reset_tokens WHERE user_id=?", (user["id"],))
+                db.execute(
+                    "INSERT INTO password_reset_tokens(token_hash,user_id,created_at,expires_at) VALUES(?,?,?,?)",
+                    (
+                        _session_hash(token), user["id"], now.isoformat(),
+                        (now + timedelta(minutes=30)).isoformat(),
+                    ),
+                )
+
+        if user is None:
+            return response_body
+
+        dev_mode = _password_reset_dev_mode()
+        base_url = os.getenv("APP_BASE_URL", "").strip().rstrip("/")
+        if not base_url and dev_mode:
+            base_url = str(request.base_url).rstrip("/")
+        if not base_url:
+            logger.error("APP_BASE_URL must be configured for password reset delivery")
+            return response_body
+
+        reset_url = f"{base_url}/#reset_token={quote(token, safe='')}"
+        if dev_mode:
+            return {**response_body, "dev_reset_url": reset_url}
+
+        background_tasks.add_task(_deliver_password_reset_email, payload.email, reset_url)
+        return response_body
+
+    @app.post("/api/auth/password-resets")
+    def reset_password(payload: PasswordResetInput) -> dict[str, str]:
+        now = _utcnow().isoformat()
+        token_hash = _session_hash(payload.token)
+        invalid_token = "비밀번호 재설정 링크가 유효하지 않거나 만료되었습니다. 다시 요청해 주세요."
+        with connect() as db:
+            token = db.execute(
+                "SELECT user_id FROM password_reset_tokens "
+                "WHERE token_hash=? AND used_at IS NULL AND expires_at>?",
+                (token_hash, now),
+            ).fetchone()
+            if token is None:
+                raise HTTPException(status_code=400, detail=invalid_token)
+
+            consumed = db.execute(
+                "UPDATE password_reset_tokens SET used_at=? "
+                "WHERE token_hash=? AND used_at IS NULL AND expires_at>?",
+                (now, token_hash, now),
+            ).rowcount
+            if consumed != 1:
+                raise HTTPException(status_code=400, detail=invalid_token)
+
+            db.execute(
+                "UPDATE users SET password_hash=? WHERE id=?",
+                (_hash_password(payload.password), token["user_id"]),
+            )
+            db.execute("DELETE FROM sessions WHERE user_id=?", (token["user_id"],))
+            db.execute("DELETE FROM password_reset_tokens WHERE user_id=?", (token["user_id"],))
+
+        return {"message": "비밀번호를 변경했습니다. 새 비밀번호로 로그인해 주세요."}
 
     @app.post("/api/auth/logout", status_code=204)
     def logout(request: Request, response: Response) -> Response:

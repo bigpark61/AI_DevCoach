@@ -71,10 +71,12 @@ function renderAuth(mode = "signup", error = "") {
           <p class="hint">가입 시 이메일 인증은 아직 연결되어 있지 않습니다. 계정은 이 서비스에서 안전하게 관리됩니다.</p>
         `}
         <button class="btn full" type="submit">${login ? "로그인" : "회원가입하고 계속하기"}</button>
+        ${login ? `<button type="button" class="text-button" id="forgot-password">비밀번호를 잊으셨나요?</button>` : ""}
       </form>
       <p class="center tiny muted" style="margin-top:18px">진단 결과는 학습 추천을 위한 참고 정보이며, 공인된 기술 인증이 아닙니다.</p>
     </section>`;
   document.querySelector("#switch-auth").addEventListener("click", () => renderAuth(login ? "signup" : "login"));
+  document.querySelector("#forgot-password")?.addEventListener("click", () => renderPasswordResetRequest());
   document.querySelector("#auth-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -91,6 +93,95 @@ function renderAuth(mode = "signup", error = "") {
     } catch (err) {
       button.disabled = false;
       setError("auth-error", err.message);
+    }
+  });
+}
+
+function renderPasswordResetRequest(email = "") {
+  setHeader(`<button class="account-link" id="back-to-login">로그인</button>`);
+  main.innerHTML = `
+    <section class="narrow">
+      <div class="center">
+        <div class="eyebrow">계정 복구</div>
+        <h1>비밀번호 재설정</h1>
+        <p class="subtitle">가입한 이메일 주소를 입력해 주세요. 계정이 있다면 재설정 링크를 보내드립니다.</p>
+      </div>
+      <form id="password-reset-request-form" class="card form-grid">
+        <div id="password-reset-request-error" class="error"></div>
+        <div class="field"><label for="reset-email">이메일 주소</label><input id="reset-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" value="${escapeHtml(email)}" required maxlength="254" /></div>
+        <button class="btn full" type="submit">재설정 링크 보내기</button>
+        <div id="password-reset-request-result" class="notice" hidden></div>
+      </form>
+    </section>`;
+  document.querySelector("#back-to-login").addEventListener("click", () => renderAuth("login"));
+  document.querySelector("#password-reset-request-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const button = event.currentTarget.querySelector("button[type=submit]");
+    button.disabled = true;
+    try {
+      const result = await api("/api/auth/password-reset-requests", {
+        method: "POST",
+        body: JSON.stringify({ email: form.get("email") }),
+      });
+      const message = document.querySelector("#password-reset-request-result");
+      message.hidden = false;
+      message.textContent = result.message;
+      if (result.dev_reset_url) {
+        const resetUrl = new URL(result.dev_reset_url, window.location.origin);
+        if (resetUrl.origin === window.location.origin) {
+          const link = document.createElement("a");
+          link.href = resetUrl.href;
+          link.className = "btn secondary full";
+          link.textContent = "개발용 재설정 링크 열기";
+          message.append(document.createElement("br"), link);
+        }
+      }
+      button.disabled = false;
+    } catch (err) {
+      button.disabled = false;
+      setError("password-reset-request-error", err.message);
+    }
+  });
+}
+
+function renderPasswordReset(token) {
+  setHeader(`<button class="account-link" id="reset-back-to-login">로그인</button>`);
+  main.innerHTML = `
+    <section class="narrow">
+      <div class="center">
+        <div class="eyebrow">계정 복구</div>
+        <h1>새 비밀번호 설정</h1>
+        <p class="subtitle">새 비밀번호를 입력해 주세요. 8자 이상이어야 합니다.</p>
+      </div>
+      <form id="password-reset-form" class="card form-grid">
+        <div id="password-reset-error" class="error"></div>
+        <div class="field"><label for="new-password">새 비밀번호</label><input id="new-password" name="password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required /></div>
+        <div class="field"><label for="confirm-password">새 비밀번호 확인</label><input id="confirm-password" name="confirm_password" type="password" autocomplete="new-password" minlength="8" maxlength="128" required /></div>
+        <button class="btn full" type="submit">비밀번호 변경</button>
+      </form>
+    </section>`;
+  document.querySelector("#reset-back-to-login").addEventListener("click", () => renderAuth("login"));
+  document.querySelector("#password-reset-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    const password = form.get("password");
+    if (password !== form.get("confirm_password")) {
+      return setError("password-reset-error", "새 비밀번호가 서로 일치하지 않습니다.");
+    }
+    const button = event.currentTarget.querySelector("button[type=submit]");
+    button.disabled = true;
+    try {
+      const result = await api("/api/auth/password-resets", {
+        method: "POST",
+        body: JSON.stringify({ token, password }),
+      });
+      window.history.replaceState({}, "", window.location.pathname + window.location.search);
+      renderAuth("login");
+      showToast(result.message);
+    } catch (err) {
+      button.disabled = false;
+      setError("password-reset-error", err.message);
     }
   });
 }
@@ -806,6 +897,11 @@ function renderProgressCoach() {
 }
 
 async function bootstrap() {
+  const resetToken = new URLSearchParams(window.location.hash.slice(1)).get("reset_token");
+  if (resetToken) {
+    window.history.replaceState({}, "", window.location.pathname + window.location.search);
+    return renderPasswordReset(resetToken);
+  }
   setLoading("AI DevCoach를 준비하고 있어요");
   try {
     state.user = await api("/api/auth/me");
