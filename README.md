@@ -2,6 +2,11 @@
 
 AI DevCoach MVP for account registration, learner profiling, skill assessment, and personalized learning plans.
 
+## Live deployments
+
+- Render: https://ai-devcoach.onrender.com
+- Vercel: https://ai-devcoach.vercel.app
+
 ## Run locally
 
 Requires Python 3.12 or newer.
