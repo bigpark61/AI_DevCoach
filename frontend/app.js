@@ -51,7 +51,7 @@ function setHeader(action = "") {
   topbarAction.innerHTML = action;
 }
 
-function renderAuth(mode = "signup", error = "") {
+function renderAuth(mode = "login", error = "") {
   const login = mode === "login";
   setHeader(`<button class="account-link" id="switch-auth">${login ? "계정 만들기" : "로그인"}</button>`);
   main.innerHTML = `
@@ -902,25 +902,7 @@ async function bootstrap() {
     window.history.replaceState({}, "", window.location.pathname + window.location.search);
     return renderPasswordReset(resetToken);
   }
-  setLoading("AI DevCoach를 준비하고 있어요");
-  try {
-    state.user = await api("/api/auth/me");
-    if (!state.user.profile_completed) return renderProfile();
-    state.profile = await api("/api/profiles/me");
-    if (!state.user.assessment_completed) return renderAssessmentIntro();
-    state.assessmentResult = await api("/api/assessments/latest");
-    try {
-      state.plan = await api("/api/plans/current");
-      return renderDashboard();
-    } catch (err) {
-      if (err.status === 404) return renderResults();
-      throw err;
-    }
-  } catch (err) {
-    if (err.status === 401) return renderAuth("signup");
-    main.innerHTML = `<section class="narrow card center"><h2>서비스에 연결할 수 없습니다</h2><p class="muted">${escapeHtml(err.message)}</p><button id="retry" class="btn">다시 시도</button></section>`;
-    document.querySelector("#retry").addEventListener("click", bootstrap);
-  }
+  return renderAuth("login");
 }
 
 bootstrap();
