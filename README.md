@@ -30,11 +30,12 @@ Set `ADMIN_EMAILS` to a comma-separated list of existing account email addresses
 
 ## Deploy to Vercel
 
-1. Push the repository to GitHub, then import it as a new Vercel project. Set the project root to the repository root; choose the **Other** framework preset if Vercel does not detect the project automatically.
+1. Push the repository to GitHub, then import it as a new Vercel project. Set the project root to the repository root and use the **FastAPI** framework preset. `vercel.json` also declares the `fastapi` framework.
 2. In **Project Settings > Environment Variables**, set `DATABASE_URL` to the pooled PostgreSQL connection string, `DATABASE_URL_UNPOOLED` to the direct connection string, and `COOKIE_SECURE` to `true`. Add `OPENAI_API_KEY` to enable written-answer grading; `OPENAI_MODEL` is optional.
-3. Before the first deployment, set `DATABASE_URL_UNPOOLED` in your local, ignored `.env` file and apply the database migrations using the commands in [Database migrations before deployment](#database-migrations-before-deployment).
-4. Deploy from the Vercel dashboard or with the Vercel CLI. With GitHub connected, pushes to the configured branch trigger deployments automatically. The FastAPI entrypoint is configured as `backend.main:app` in `pyproject.toml`.
-5. Open the deployment URL and verify `/api/health` returns `{"status":"ok", ...}`.
+3. To enable production password-reset emails, also set `APP_BASE_URL` to the deployed site URL and configure `SMTP_HOST`, `SMTP_PORT`, and `SMTP_FROM`. Add `SMTP_USERNAME` and `SMTP_PASSWORD` if required by your mail provider; set `SMTP_USE_SSL=true` when the provider requires implicit TLS.
+4. Before the first deployment, set `DATABASE_URL_UNPOOLED` in your local, ignored `.env` file and apply the database migrations using the commands in [Database migrations before deployment](#database-migrations-before-deployment).
+5. Deploy from the Vercel dashboard or with the Vercel CLI. With GitHub connected, pushes to the configured branch trigger deployments automatically. The FastAPI entrypoint is configured as `backend.main:app` in `pyproject.toml`.
+6. Open the deployment URL and verify `/api/health` returns `{"status":"ok", ...}`.
 
 Use a separate database or Neon branch for Vercel Preview deployments; do not point previews at production data.
 
