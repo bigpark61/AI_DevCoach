@@ -4,7 +4,7 @@ const toast = document.querySelector("#toast");
 
 const SKILLS = ["Python 기초", "API·데이터 처리", "Git·GitHub", "LLM·AI Agent 활용", "코드 이해·오류 분석"];
 const INTERESTS = ["Python", "HTML/CSS", "Git/GitHub", "JavaScript", "FastAPI", "LLM API", "RAG", "AI Agent"];
-const state = { user: null, questions: [], assessmentId: null, answers: {}, assessmentResult: null, profile: null, plan: null, progress: null, progressView: "dashboard", selectedWeek: 1, selectedTask: null, taskDetail: null, progressStats: null, activityRows: [], coachFeedback: null, githubAnalyses: [], githubResult: null };
+const state = { user: null, questions: [], assessmentId: null, answers: {}, assessmentResult: null, profile: null, plan: null, progress: null, progressView: "dashboard", selectedWeek: 1, selectedTask: null, taskDetail: null, progressStats: null, activityRows: [], coachFeedback: null, agentHistory: [], agentBusy: false, githubAnalyses: [], githubResult: null, adminOverview: null, adminSearch: "", selectedAdminUserId: null, adminViewActive: false };
 
 function escapeHtml(value = "") {
   return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
@@ -48,7 +48,11 @@ function setLoading(label = "불러오는 중...") {
 }
 
 function setHeader(action = "") {
-  topbarAction.innerHTML = action;
+  const adminButton = state.user?.is_admin && !state.adminViewActive
+    ? `<button class="account-link" id="admin-nav" ${state.adminViewActive ? 'aria-current="page"' : ""}>관리자</button>`
+    : "";
+  topbarAction.innerHTML = `${action}${adminButton}`;
+  document.querySelector("#admin-nav")?.addEventListener("click", openAdminView);
 }
 
 function renderAuth(mode = "login", error = "") {
@@ -188,6 +192,12 @@ function renderPasswordReset(token) {
 
 async function continueUser() {
   state.user = await api("/api/auth/me");
+  if (state.user.is_admin) return openAdminView();
+  return continueLearnerView();
+}
+
+async function continueLearnerView() {
+  state.adminViewActive = false;
   if (!state.user.profile_completed) return renderProfile();
   state.profile = await api("/api/profiles/me");
   if (!state.user.assessment_completed) return renderAssessmentIntro();
@@ -222,6 +232,8 @@ async function logout() {
   state.progressStats = null;
   state.activityRows = [];
   state.coachFeedback = null;
+  state.agentHistory = [];
+  state.agentBusy = false;
   renderAuth("login");
 }
 
@@ -621,14 +633,91 @@ async function renderDashboard() {
 }
 
 function progressNavigation(activeView) {
-  setHeader(`<nav class="progress-nav" aria-label="학습 메뉴">${[["dashboard", "대시보드"], ["tasks", "과제 관리"], ["history", "학습 통계"], ["coach", "학습 코칭"], ["github", "GitHub 분석"]].map(([view, label]) => `<button class="${view === activeView ? "active" : ""}" data-progress-view="${view}" aria-current="${view === activeView ? "page" : "false"}">${label}</button>`).join("")}<button class="account-link" id="assessment-intro">수준 진단</button><button class="account-link" id="assessment-results">진단 결과</button><button class="account-link" id="logout-action">로그아웃</button></nav>`);
+  setHeader(`<nav class="progress-nav" aria-label="학습 메뉴">${[["dashboard", "대시보드"], ["tasks", "과제 관리"], ["history", "학습 통계"], ["coach", "학습 코칭"], ["agent", "AI 코치"], ["github", "GitHub 분석"]].map(([view, label]) => `<button class="${view === activeView ? "active" : ""}" data-progress-view="${view}" aria-current="${view === activeView ? "page" : "false"}">${label}</button>`).join("")}<button class="account-link" id="assessment-intro">수준 진단</button><button class="account-link" id="assessment-results">진단 결과</button><button class="account-link" id="logout-action">로그아웃</button></nav>`);
   document.querySelectorAll("[data-progress-view]").forEach((button) => button.addEventListener("click", () => openProgressView(button.dataset.progressView)));
   document.querySelector("#assessment-intro").addEventListener("click", renderAssessmentIntro);
   document.querySelector("#assessment-results").addEventListener("click", openAssessmentResults);
   document.querySelector("#logout-action").addEventListener("click", logout);
 }
 
+async function openAdminView() {
+  state.adminViewActive = true;
+  setLoading("사용자별 학습 현황을 불러오고 있어요");
+  try {
+    state.adminOverview = await api("/api/admin/overview");
+    if (!state.selectedAdminUserId || !state.adminOverview.users.some((user) => user.id === state.selectedAdminUserId)) {
+      state.selectedAdminUserId = state.adminOverview.users[0]?.id || null;
+    }
+    renderAdminView();
+  } catch (err) {
+    setHeader(`<button class="account-link" id="logout-action">로그아웃</button>`);
+    main.innerHTML = `<section class="narrow center"><h2>관리자 현황을 불러오지 못했습니다</h2><p class="muted">${escapeHtml(err.message)}</p><button id="retry-admin" class="btn">다시 시도</button></section>`;
+    document.querySelector("#retry-admin").addEventListener("click", openAdminView);
+    document.querySelector("#logout-action").addEventListener("click", logout);
+  }
+}
+
+function renderAdminView() {
+  const overview = state.adminOverview;
+  const search = state.adminSearch.trim().toLowerCase();
+  const members = overview.users.filter((user) => [user.email, user.nickname, user.learning_goal, user.plan_goal]
+    .some((value) => String(value || "").toLowerCase().includes(search)));
+  const selected = overview.users.find((user) => user.id === state.selectedAdminUserId);
+  const taskCount = overview.users.reduce((total, user) => total + user.total_tasks, 0);
+  const completedCount = overview.users.reduce((total, user) => total + user.completed_tasks, 0);
+  const blockedCount = overview.users.reduce((total, user) => total + user.blocked_tasks, 0);
+  const statusNames = { todo: "시작 전", in_progress: "진행 중", completed: "완료", blocked: "보류" };
+  state.adminViewActive = true;
+  setHeader(`<nav class="admin-nav" aria-label="관리자 메뉴">${state.user?.profile_completed ? `<button class="account-link" id="learner-view">학습자 화면</button>` : ""}<button class="account-link" id="logout-action">로그아웃</button></nav>`);
+  main.innerHTML = `
+    <section class="admin-page">
+      <div class="eyebrow">운영 현황</div><h1>관리자 대시보드</h1>
+      <p class="subtitle">사용자별 학습계획과 과제 진행 상태를 확인합니다.</p>
+      <div class="admin-kpis">
+        <div><span>등록 사용자</span><strong>${overview.user_count}</strong></div>
+        <div><span>진행 중인 계획</span><strong>${overview.active_plan_count}</strong></div>
+        <div><span>전체 완료율</span><strong>${taskCount ? Math.round(completedCount / taskCount * 100) : 0}%</strong></div>
+        <div><span>보류 과제</span><strong>${blockedCount}</strong></div>
+      </div>
+      <form class="admin-filters" id="admin-search-form">
+        <label for="admin-search">사용자 검색</label>
+        <input id="admin-search" name="search" type="search" placeholder="이메일, 이름 또는 학습 목표" value="${escapeHtml(state.adminSearch)}" />
+        <button class="btn secondary" type="submit">검색</button>
+        <button class="btn ghost" type="button" id="admin-refresh" title="현황 새로고침" aria-label="현황 새로고침">↻</button>
+      </form>
+      <div class="admin-layout">
+        <section class="admin-members" aria-label="사용자 목록">
+          <div class="admin-list-heading"><strong>사용자</strong><span>${members.length}명</span></div>
+          ${members.length ? members.map((user) => `<button type="button" class="admin-user-row ${user.id === selected?.id ? "selected" : ""}" data-admin-user-id="${escapeHtml(user.id)}">
+            <span class="admin-avatar" aria-hidden="true">${escapeHtml((user.nickname || user.email).slice(0, 1).toUpperCase())}</span>
+            <span class="admin-user-copy"><strong>${escapeHtml(user.nickname || user.email)}</strong><small>${escapeHtml(user.email)}</small></span>
+            <span class="admin-user-progress"><strong>${user.completion_rate}%</strong><small>${user.completed_tasks}/${user.total_tasks} 과제</small></span>
+          </button>`).join("") : `<p class="empty-progress">검색 결과가 없습니다.</p>`}
+        </section>
+        ${selected ? `<section class="admin-detail" aria-label="선택한 사용자 상세">
+          <header class="admin-detail-heading"><div><div class="eyebrow">사용자 상세</div><h2>${escapeHtml(selected.nickname || selected.email)}</h2><p>${escapeHtml(selected.email)}</p></div><span class="admin-plan-status ${selected.plan_status === "approved" ? "is-active" : ""}">${selected.plan_status === "approved" ? "학습 중" : selected.plan_status === "draft" ? "계획 초안" : "계획 없음"}</span></header>
+          <div class="admin-member-meta"><div><span>학습 목표</span><strong>${escapeHtml(selected.plan_goal || selected.learning_goal || "미등록")}</strong></div><div><span>과제 완료</span><strong>${selected.completed_tasks}/${selected.total_tasks} · ${selected.completion_rate}%</strong></div><div><span>학습 시간</span><strong>${(selected.actual_minutes / 60).toFixed(1)}h / ${(selected.planned_minutes / 60).toFixed(1)}h</strong></div><div><span>보류 과제</span><strong>${selected.blocked_tasks}개</strong></div></div>
+          <div class="admin-task-heading"><h3>개인별 과제 수행 현황</h3><span>${selected.tasks.length}개 과제</span></div>
+          ${selected.tasks.length ? `<div class="admin-task-list">${selected.tasks.map((task) => `<article class="admin-task-row"><div class="admin-task-main"><span class="admin-week-label">${task.week_no}주차</span><strong>${escapeHtml(task.title)}</strong><span class="task-state state-${escapeHtml(task.status)}">${statusNames[task.status] || escapeHtml(task.status)}</span></div><div class="admin-task-meta"><span>학습 ${(task.actual_minutes / 60).toFixed(1)}h / 계획 ${(task.planned_minutes / 60).toFixed(1)}h</span>${task.submission_url && /^https?:\/\//i.test(task.submission_url) ? `<a href="${escapeHtml(task.submission_url)}" target="_blank" rel="noopener noreferrer">제출물 보기</a>` : `<span class="muted">${task.submission_url ? "확인할 수 없는 링크" : "미제출"}</span>`}</div></article>`).join("")}</div>` : `<p class="empty-progress">아직 확인할 학습계획이나 과제가 없습니다.</p>`}
+        </section>` : `<section class="admin-detail empty-progress">사용자를 선택하면 과제 수행 현황을 볼 수 있습니다.</section>`}
+      </div>
+    </section>`;
+  document.querySelector("#logout-action").addEventListener("click", logout);
+  document.querySelector("#learner-view")?.addEventListener("click", continueLearnerView);
+  document.querySelector("#admin-search-form").addEventListener("submit", (event) => {
+    event.preventDefault();
+    state.adminSearch = new FormData(event.currentTarget).get("search");
+    renderAdminView();
+  });
+  document.querySelector("#admin-refresh").addEventListener("click", openAdminView);
+  document.querySelectorAll("[data-admin-user-id]").forEach((button) => button.addEventListener("click", () => {
+    state.selectedAdminUserId = button.dataset.adminUserId;
+    renderAdminView();
+  }));
+}
+
 async function openProgressView(view) {
+  state.adminViewActive = false;
   state.progressView = view;
   state.taskDetail = null;
   if (view === "github") {
@@ -645,6 +734,9 @@ async function openProgressView(view) {
   setLoading("학습 진도를 불러오고 있어요");
   try {
     state.progress = await api("/api/progress/dashboard");
+    if (view === "agent") {
+      return renderAgentChat();
+    }
     if (view === "history") {
       [state.progressStats, state.activityRows] = await Promise.all([
         api("/api/progress/statistics"), api("/api/progress/activities"),
@@ -894,6 +986,52 @@ function renderProgressCoach() {
     } catch (err) { showToast(err.message); }
   });
   document.querySelector("#back-progress").addEventListener("click", () => openProgressView("dashboard"));
+}
+
+function renderAgentChat() {
+  progressNavigation("agent");
+  const messages = state.agentHistory.map((item) => `<article class="agent-message ${item.role === "assistant" ? "assistant" : "user"}">
+    <span>${item.role === "assistant" ? "AI 코치" : "나"}</span>
+    <p>${escapeHtml(item.content).replace(/\n/g, "<br>")}</p>
+    ${item.sources?.length ? `<div class="agent-sources"><small>참고 자료</small>${item.sources.map((source) => `<span>[${escapeHtml(source.source_id)}] ${escapeHtml(source.title)}</span>`).join("")}</div>` : ""}
+  </article>`).join("");
+  main.innerHTML = `<section class="progress-page agent-page">
+    <div class="eyebrow">검색 증강 학습 지원</div><h1>AI 학습 코치</h1>
+    <p class="subtitle">과제 진행을 묻거나 학습 자료를 검색해 보세요.</p>
+    <div class="agent-chat-log" id="agent-chat-log" aria-live="polite">${messages || `<div class="agent-empty">무엇을 학습하고 있나요?</div>`}</div>
+    <form class="agent-composer" id="agent-chat-form">
+      <label for="agent-message">메시지</label>
+      <textarea id="agent-message" name="message" maxlength="2000" placeholder="예: RAG에서 출처를 표시해야 하는 이유를 알려줘" required></textarea>
+      <div class="agent-composer-footer"><span class="tiny muted">개인 진도는 로그인한 계정의 기록만 조회합니다.</span><button class="btn" type="submit" ${state.agentBusy ? "disabled" : ""}>${state.agentBusy ? "답변 생성 중..." : "보내기"}</button></div>
+    </form>
+  </section>`;
+  const log = document.querySelector("#agent-chat-log");
+  log.scrollTop = log.scrollHeight;
+  document.querySelector("#agent-chat-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (state.agentBusy) return;
+    const form = new FormData(event.currentTarget);
+    const message = String(form.get("message") || "").trim();
+    if (!message) return;
+    state.agentHistory.push({ role: "user", content: message });
+    state.agentBusy = true;
+    renderAgentChat();
+    try {
+      const response = await api("/api/agent/chat", {
+        method: "POST",
+        body: JSON.stringify({
+          message,
+          history: state.agentHistory.slice(0, -1).slice(-8).map(({ role, content }) => ({ role, content })),
+        }),
+      });
+      state.agentHistory.push({ role: "assistant", content: response.reply, sources: response.sources });
+    } catch (err) {
+      state.agentHistory.push({ role: "assistant", content: err.message, sources: [] });
+    } finally {
+      state.agentBusy = false;
+      renderAgentChat();
+    }
+  });
 }
 
 async function bootstrap() {

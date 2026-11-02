@@ -11,6 +11,7 @@ import smtplib
 import base64
 import ssl
 from contextlib import contextmanager
+from copy import deepcopy
 from datetime import date, datetime, timedelta, timezone
 from email.message import EmailMessage
 from pathlib import Path
@@ -24,8 +25,13 @@ from dotenv import load_dotenv
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
-from openai import OpenAI, OpenAIError
+from openai import OpenAIError
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+
+from backend.agent import run_learning_agent
+from backend.ai_client import configured_model, create_ai_client
+from backend.knowledge import search_knowledge
+from backend.planning import generate_plan_content
 from psycopg.rows import dict_row
 
 
@@ -317,6 +323,23 @@ class PlanRevisionRequestInput(BaseModel):
         return value.strip()
 
 
+class AgentHistoryMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(min_length=1, max_length=2000)
+
+
+class AgentChatInput(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
+    history: list[AgentHistoryMessage] = Field(default_factory=list, max_length=8)
+
+    @field_validator("message")
+    @classmethod
+    def non_blank_message(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("질문을 입력해 주세요.")
+        return value.strip()
+
+
 class GitHubAnalysisInput(BaseModel):
     repo_url: str = Field(min_length=1, max_length=500)
     branch: str = Field(default="", max_length=255)
@@ -475,8 +498,8 @@ def _project_review(
         task_feedback="정적 파일 증거만으로 과제 동작을 확정할 수 없습니다." if task_criteria else "연결된 학습과제가 없습니다.",
     ).model_dump()
 
-    api_key = os.getenv("OPENAI_API_KEY", "").strip()
-    if not api_key:
+    client = create_ai_client()
+    if not client:
         return deterministic, "rules"
 
     review_input = json.dumps({
@@ -490,9 +513,8 @@ def _project_review(
         "task_criteria": task_criteria,
     }, ensure_ascii=False)
     try:
-        client = OpenAI(api_key=api_key, timeout=30.0, max_retries=1)
         completion = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            model=configured_model(),
             temperature=0,
             messages=[
                 {
@@ -636,11 +658,11 @@ def _grade_written_with_openai(question: dict[str, Any], answer: str) -> tuple[i
     if not answer.strip():
         return 0, ["답변이 없어 점수를 부여하지 않았습니다."]
 
-    api_key = os.getenv("OPENAI_API_KEY", "").strip()
-    if not api_key:
+    client = create_ai_client()
+    if not client:
         raise HTTPException(
             status_code=503,
-            detail="서술형 AI 채점 설정이 필요합니다. 서버에 OPENAI_API_KEY를 설정한 후 다시 제출해 주세요.",
+            detail="서술형 AI 채점 설정이 필요합니다. OPENAI_API_KEY 또는 Neon AI Gateway 인증 환경변수를 설정한 후 다시 제출해 주세요.",
         )
 
     rubric = {
@@ -668,13 +690,8 @@ def _grade_written_with_openai(question: dict[str, Any], answer: str) -> tuple[i
     )
 
     try:
-        client = OpenAI(
-            api_key=api_key,
-            timeout=30.0,
-            max_retries=1,
-        )
         completion = client.chat.completions.create(
-            model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+            model=configured_model(),
             temperature=0,
             messages=[
                 {
@@ -852,6 +869,59 @@ def _build_plan(data: PlanGenerateInput, profile: dict[str, Any], result: dict[s
         "weeks": weeks,
         "created_at": _utcnow().isoformat(),
     }
+
+
+def _build_grounded_plan(
+    data: PlanGenerateInput, profile: dict[str, Any], assessment: dict[str, Any]
+) -> dict[str, Any]:
+    plan = _build_plan(data, profile, assessment)
+    client = create_ai_client()
+    if not client:
+        return plan
+
+    query = " ".join([
+        data.goal, *data.focus_skills, *profile.get("interest_skills", []),
+        data.additional_requirements,
+    ]).strip()
+    sources = search_knowledge(query, limit=8)
+    if not sources:
+        return plan
+
+    try:
+        generated = generate_plan_content(
+            client=client,
+            model=configured_model(),
+            base_plan=plan,
+            learner=profile,
+            assessment=assessment,
+            sources=sources,
+        )
+        if len(generated.weeks) != len(plan["weeks"]):
+            raise ValueError("AI plan changed the requested duration")
+        candidate = deepcopy(plan)
+        allowed_sources = {str(source["source_id"]): str(source["title"]) for source in sources}
+        for existing_week, generated_week in zip(candidate["weeks"], generated.weeks):
+            if generated_week.week_no != existing_week["week_no"] or len(generated_week.tasks) != len(existing_week["tasks"]):
+                raise ValueError("AI plan changed the fixed week or task structure")
+            existing_week["weekly_goal"] = generated_week.weekly_goal
+            for existing_task, generated_task in zip(existing_week["tasks"], generated_week.tasks):
+                existing_task["title"] = generated_task.title
+                existing_task["deliverable"] = generated_task.deliverable
+                existing_task["completion_criteria"] = generated_task.completion_criteria
+                resource_ids = [source_id for source_id in generated_task.resource_ids if source_id in allowed_sources]
+                if not resource_ids:
+                    raise ValueError("AI plan referenced no retrieved source")
+                existing_task["learning_resources"] = [
+                    f"[{source_id}] {allowed_sources[source_id]}" for source_id in resource_ids
+                ]
+        candidate["generated_by"] = "retrieval_augmented_ai"
+        candidate["source_ids"] = list(allowed_sources)
+        return candidate
+    except OpenAIError:
+        logger.exception("RAG-assisted plan generation failed; using rules-based plan")
+    except (ValidationError, TypeError, ValueError) as exc:
+        logger.warning("Invalid RAG-assisted plan; using rules-based plan: %s", exc)
+    return plan
 
 
 def _validate_plan(plan: dict[str, Any]) -> list[str]:
@@ -1072,6 +1142,19 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
         if row is None:
             raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
         return dict(row)
+
+    def is_admin_email(email: str) -> bool:
+        admin_emails = {
+            value.strip().lower()
+            for value in os.getenv("ADMIN_EMAILS", "").split(",")
+            if value.strip()
+        }
+        return email.lower() in admin_emails
+
+    def admin_user(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+        if not is_admin_email(user["email"]):
+            raise HTTPException(status_code=403, detail="관리자 권한이 필요합니다.")
+        return user
 
     @app.get("/api/health")
     def health() -> dict[str, str]:
@@ -1394,6 +1477,7 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             ).fetchone()
         return {
             **user,
+            "is_admin": is_admin_email(user["email"]),
             "profile_completed": profile is not None,
             "assessment_completed": assessment is not None,
             "assessment_id": assessment["id"] if assessment else None,
@@ -1589,7 +1673,7 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             raise HTTPException(status_code=409, detail="프로필 등록과 수준 진단을 먼저 완료해 주세요.")
         profile = _profile_dict(profile_row)
         result = json.loads(assessment["result"])
-        plan = _build_plan(payload, profile, result)
+        plan = _build_grounded_plan(payload, profile, result)
         errors = _validate_plan(plan)
         if errors:
             raise HTTPException(status_code=500, detail={"message": "생성한 계획 검증에 실패했습니다.", "errors": errors})
@@ -1784,6 +1868,72 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             "in_progress_tasks": in_progress_count, "blocked_tasks": blocked_count,
             "submission_tasks": submission_tasks, "submitted_tasks": submitted_tasks,
             "weeks": weeks,
+        }
+
+    @app.get("/api/admin/overview")
+    def admin_overview(user: dict[str, Any] = Depends(admin_user)) -> dict[str, Any]:
+        users = []
+        with connect() as db:
+            user_rows = db.execute(
+                "SELECT users.id,users.email,users.created_at,profiles.nickname,profiles.learning_goal "
+                "FROM users LEFT JOIN profiles ON profiles.user_id=users.id "
+                "ORDER BY users.created_at DESC"
+            ).fetchall()
+            for user_row in user_rows:
+                member = dict(user_row)
+                plan_row = db.execute(
+                    "SELECT id,status,data FROM plans WHERE user_id=? ORDER BY updated_at DESC LIMIT 1",
+                    (member["id"],),
+                ).fetchone()
+                tasks = []
+                completed_tasks = in_progress_tasks = blocked_tasks = 0
+                actual_minutes = planned_minutes = 0
+                plan_goal = plan_status = None
+                if plan_row:
+                    plan_data = json.loads(plan_row["data"])
+                    plan_goal = plan_data.get("goal")
+                    plan_status = plan_row["status"]
+                    for week in plan_data.get("weeks", []):
+                        for task in week.get("tasks", []):
+                            task_id = str(task["id"])
+                            progress = task_progress_dict(db, plan_row["id"], task_id, member["id"])
+                            submission = db.execute(
+                                "SELECT github_url,submitted_at FROM task_submissions "
+                                "WHERE plan_id=? AND task_id=? AND user_id=? "
+                                "ORDER BY submitted_at DESC LIMIT 1",
+                                (plan_row["id"], task_id, member["id"]),
+                            ).fetchone()
+                            status = progress["status"]
+                            completed_tasks += int(status == "completed")
+                            in_progress_tasks += int(status == "in_progress")
+                            blocked_tasks += int(status == "blocked")
+                            actual_minutes += progress["actual_minutes"]
+                            task_planned_minutes = int(float(task["estimated_hours"]) * 60)
+                            planned_minutes += task_planned_minutes
+                            tasks.append({
+                                "id": task_id, "title": task["title"],
+                                "week_no": week["week_no"], "status": status,
+                                "planned_minutes": task_planned_minutes,
+                                "actual_minutes": progress["actual_minutes"],
+                                "submission_url": submission["github_url"] if submission else None,
+                                "submitted_at": submission["submitted_at"] if submission else None,
+                            })
+                total_tasks = len(tasks)
+                users.append({
+                    "id": member["id"], "email": member["email"],
+                    "created_at": member["created_at"], "nickname": member["nickname"],
+                    "learning_goal": member["learning_goal"], "plan_goal": plan_goal,
+                    "plan_status": plan_status, "total_tasks": total_tasks,
+                    "completed_tasks": completed_tasks,
+                    "in_progress_tasks": in_progress_tasks, "blocked_tasks": blocked_tasks,
+                    "completion_rate": round(completed_tasks / total_tasks * 100) if total_tasks else 0,
+                    "planned_minutes": planned_minutes, "actual_minutes": actual_minutes,
+                    "tasks": tasks,
+                })
+        return {
+            "user_count": len(users),
+            "active_plan_count": sum(member["plan_status"] == "approved" for member in users),
+            "users": users,
         }
 
     @app.get("/api/progress/weeks/{week_no}")
@@ -2035,6 +2185,85 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             "actions": actions, "completion_rate": dashboard["completion_rate"],
             "blocked_tasks": dashboard["blocked_tasks"], "generated_at": _utcnow().isoformat(),
         }
+
+    @app.post("/api/agent/chat")
+    def agent_chat(payload: AgentChatInput, user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+        client = create_ai_client()
+        if not client:
+            raise HTTPException(
+                status_code=503,
+                detail="AI 코치 설정이 필요합니다. OPENAI_API_KEY 또는 Neon AI Gateway 환경변수를 설정해 주세요.",
+            )
+
+        retrieved_sources: dict[str, dict[str, str]] = {}
+
+        def search_resources(arguments: dict[str, Any]) -> dict[str, Any]:
+            query = str(arguments.get("query", "")).strip()[:300]
+            results = search_knowledge(query)
+            for result in results:
+                source_id = str(result["source_id"])
+                retrieved_sources[source_id] = {
+                    "source_id": source_id,
+                    "title": str(result["title"]),
+                }
+            return {"results": results, "result_count": len(results)}
+
+        def get_progress(_: dict[str, Any]) -> dict[str, Any]:
+            try:
+                dashboard = progress_dashboard(user)
+            except HTTPException as exc:
+                return {"error": str(exc.detail)}
+            return {
+                key: dashboard[key] for key in (
+                    "goal", "total_tasks", "completed_tasks", "completion_rate",
+                    "planned_minutes", "actual_minutes", "in_progress_tasks", "blocked_tasks",
+                )
+            }
+
+        def list_tasks(arguments: dict[str, Any]) -> dict[str, Any]:
+            try:
+                dashboard = progress_dashboard(user)
+            except HTTPException as exc:
+                return {"error": str(exc.detail)}
+            requested_status = arguments.get("status")
+            tasks = [
+                {
+                    "week_no": week["week_no"], "id": task["id"],
+                    "title": task["title"], "status": task["status"],
+                    "planned_minutes": task["planned_minutes"],
+                    "actual_minutes": task["actual_minutes"],
+                }
+                for week in dashboard["weeks"] for task in week["tasks"]
+                if requested_status is None or task["status"] == requested_status
+            ]
+            return {"tasks": tasks[:40], "task_count": len(tasks)}
+
+        history = [item.model_dump() for item in payload.history]
+        try:
+            result = run_learning_agent(
+                client=client,
+                model=configured_model(),
+                message=payload.message,
+                history=history,
+                handlers={
+                    "search_learning_resources": search_resources,
+                    "get_my_learning_progress": get_progress,
+                    "list_my_tasks": list_tasks,
+                },
+            )
+        except OpenAIError as exc:
+            logger.exception("AI learning agent request failed")
+            raise HTTPException(status_code=502, detail="AI 코치 응답에 실패했습니다. 잠시 후 다시 시도해 주세요.") from exc
+        except ValueError as exc:
+            logger.exception("AI learning agent response was invalid")
+            raise HTTPException(status_code=502, detail="AI 코치 응답을 확인하지 못했습니다.") from exc
+        valid_source_ids = set(retrieved_sources)
+        result["reply"] = re.sub(
+            r"\[([A-Za-z0-9_-]+)\]",
+            lambda match: match.group(0) if match.group(1) in valid_source_ids else "",
+            result["reply"],
+        )
+        return {**result, "sources": list(retrieved_sources.values())}
 
     @app.post("/api/plans/{plan_id}/revision-request", status_code=201)
     def request_plan_revision(
