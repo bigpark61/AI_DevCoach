@@ -253,7 +253,7 @@ class PlanUpdateInput(BaseModel):
 
 
 class TaskProgressInput(BaseModel):
-    status: Literal["todo", "in_progress", "blocked"] | None = None
+    status: Literal["todo", "in_progress", "completed", "blocked"] | None = None
     learning_start_date: str | None = Field(default=None, max_length=10)
     learning_notes: str | None = Field(default=None, max_length=2000)
     difficulty_notes: str | None = Field(default=None, max_length=2000)
@@ -1837,20 +1837,25 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             status = updates.pop("status", old["status"])
             if status == "in_progress" and not old["learning_start_date"]:
                 updates.setdefault("learning_start_date", _utcnow().date().isoformat())
+            if status == "completed" and not old["completed_at"]:
+                updates.setdefault("completed_at", _utcnow().isoformat())
+            elif status != "completed":
+                updates.setdefault("completed_at", None)
             values = {
                 "learning_start_date": updates.get("learning_start_date", old["learning_start_date"]),
                 "learning_notes": updates.get("learning_notes", old["learning_notes"]),
                 "difficulty_notes": updates.get("difficulty_notes", old["difficulty_notes"]),
                 "learner_memo": updates.get("learner_memo", old["learner_memo"]),
+                "completed_at": updates.get("completed_at", old["completed_at"]),
             }
             now = _utcnow().isoformat()
             db.execute(
-                "INSERT INTO task_progress(plan_id,task_id,user_id,status,learning_start_date,learning_notes,difficulty_notes,learner_memo,updated_at) "
-                "VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(plan_id,task_id) DO UPDATE SET "
+                "INSERT INTO task_progress(plan_id,task_id,user_id,status,learning_start_date,learning_notes,difficulty_notes,learner_memo,completed_at,updated_at) "
+                "VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(plan_id,task_id) DO UPDATE SET "
                 "status=excluded.status,learning_start_date=excluded.learning_start_date,learning_notes=excluded.learning_notes," 
-                "difficulty_notes=excluded.difficulty_notes,learner_memo=excluded.learner_memo,updated_at=excluded.updated_at",
+                "difficulty_notes=excluded.difficulty_notes,learner_memo=excluded.learner_memo,completed_at=excluded.completed_at,updated_at=excluded.updated_at",
                 (plan_row["id"], task_id, user["id"], status, values["learning_start_date"],
-                 values["learning_notes"], values["difficulty_notes"], values["learner_memo"], now),
+                 values["learning_notes"], values["difficulty_notes"], values["learner_memo"], values["completed_at"], now),
             )
             if status != old["status"]:
                 log_activity(db, plan_row["id"], task_id, user["id"], "status_changed", old["status"], status)
