@@ -4,14 +4,25 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import httpx
 from openai import OpenAI
 from fastapi.testclient import TestClient
 
-from backend.main import QUESTIONS, _grade_written_with_openai, create_app
+from backend.main import (
+    QUESTIONS,
+    PlanGenerateInput,
+    _build_grounded_plan,
+    _grade_written_with_openai,
+    _validate_plan,
+    create_app,
+)
+from backend.agent import run_learning_agent
+from backend.ai_client import configured_model, create_ai_client
+from backend.knowledge import search_knowledge
 
 
 class DevCoachFlowTests(unittest.TestCase):
@@ -83,6 +94,227 @@ class DevCoachFlowTests(unittest.TestCase):
         logout = self.client.post("/api/auth/logout")
         self.assertEqual(logout.status_code, 204)
         self.assertEqual(self.client.get("/api/auth/me").status_code, 401)
+
+    def test_admin_overview_is_restricted_to_allowlisted_emails(self):
+        self.assertEqual(self.client.get("/api/admin/overview").status_code, 401)
+        self.signup("admin@example.com")
+        with patch.dict(os.environ, {"ADMIN_EMAILS": "ADMIN@example.com, other@example.com"}):
+            self.assertTrue(self.client.get("/api/auth/me").json()["is_admin"])
+            overview = self.client.get("/api/admin/overview")
+        self.assertEqual(overview.status_code, 200, overview.text)
+        self.assertEqual(overview.json()["user_count"], 1)
+        self.assertEqual(overview.json()["users"][0]["email"], "admin@example.com")
+        self.assertEqual(overview.json()["users"][0]["tasks"], [])
+
+        self.client.post("/api/auth/logout")
+        self.signup("learner@example.com")
+        with patch.dict(os.environ, {"ADMIN_EMAILS": "admin@example.com"}):
+            denied = self.client.get("/api/admin/overview")
+        self.assertEqual(denied.status_code, 403)
+
+    def test_agent_chat_requires_authentication_and_ai_provider(self):
+        provider_env = {
+            "OPENAI_API_KEY": "",
+            "OPENAI_BASE_URL": "",
+            "NEON_AI_GATEWAY_TOKEN": "",
+            "NEON_AI_GATEWAY_BASE_URL": "",
+        }
+        with patch.dict(os.environ, provider_env):
+            unauthenticated = self.client.post("/api/agent/chat", json={"message": "RAG를 설명해 줘"})
+            self.assertEqual(unauthenticated.status_code, 401)
+            self.signup("agent-learner@example.com")
+            unavailable = self.client.post("/api/agent/chat", json={"message": "RAG를 설명해 줘"})
+        self.assertEqual(unavailable.status_code, 503)
+        self.assertIn("AI 코치 설정", unavailable.json()["detail"])
+
+    def test_knowledge_search_returns_relevant_citable_sources(self):
+        results = search_knowledge("RAG 검색 출처 근거")
+        self.assertTrue(results)
+        self.assertEqual(results[0]["source_id"], "rag-fundamentals-1")
+        self.assertIn("검색 결과", results[0]["content"])
+        self.assertEqual(search_knowledge("xylophonezzqv"), [])
+
+    def test_agent_uses_read_only_tool_then_returns_grounded_answer(self):
+        tool_call = SimpleNamespace(
+            id="call-search",
+            function=SimpleNamespace(
+                name="search_learning_resources",
+                arguments=json.dumps({"query": "RAG source citation"}),
+            ),
+        )
+        tool_message = SimpleNamespace(
+            tool_calls=[tool_call],
+            model_dump=lambda **kwargs: {
+                "role": "assistant",
+                "tool_calls": [{
+                    "id": "call-search", "type": "function",
+                    "function": {"name": "search_learning_resources", "arguments": tool_call.function.arguments},
+                }],
+            },
+        )
+        final_message = SimpleNamespace(tool_calls=[], content="RAG는 검색 결과를 근거로 답합니다. [rag-fundamentals-1]")
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=Mock(side_effect=[
+            SimpleNamespace(choices=[SimpleNamespace(message=tool_message)]),
+            SimpleNamespace(choices=[SimpleNamespace(message=final_message)]),
+        ]))))
+        search_handler = Mock(return_value={"results": [{"source_id": "rag-fundamentals-1"}]})
+
+        result = run_learning_agent(
+            client=client,
+            model="test-model",
+            message="RAG가 뭔가요?",
+            history=[],
+            handlers={"search_learning_resources": search_handler},
+        )
+
+        search_handler.assert_called_once_with({"query": "RAG source citation"})
+        self.assertIn("[rag-fundamentals-1]", result["reply"])
+        self.assertEqual(result["tool_calls"], ["search_learning_resources"])
+
+    def test_agent_chat_returns_only_retrieved_citations(self):
+        self.signup("rag-learner@example.com")
+        tool_call = SimpleNamespace(
+            id="call-search",
+            function=SimpleNamespace(
+                name="search_learning_resources",
+                arguments=json.dumps({"query": "RAG 검색 출처 근거"}),
+            ),
+        )
+        tool_message = SimpleNamespace(
+            tool_calls=[tool_call],
+            model_dump=lambda **kwargs: {
+                "role": "assistant",
+                "tool_calls": [{
+                    "id": "call-search", "type": "function",
+                    "function": {"name": "search_learning_resources", "arguments": tool_call.function.arguments},
+                }],
+            },
+        )
+        final_message = SimpleNamespace(
+            tool_calls=[],
+            content="관련 자료를 확인했습니다. [rag-fundamentals-1] [unknown-source]",
+        )
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=Mock(side_effect=[
+            SimpleNamespace(choices=[SimpleNamespace(message=tool_message)]),
+            SimpleNamespace(choices=[SimpleNamespace(message=final_message)]),
+        ]))))
+        with patch("backend.main.create_ai_client", return_value=client):
+            response = self.client.post("/api/agent/chat", json={"message": "RAG 출처 근거는?"})
+
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertIn("[rag-fundamentals-1]", response.json()["reply"])
+        self.assertNotIn("unknown-source", response.json()["reply"])
+        self.assertEqual(response.json()["sources"][0]["source_id"], "rag-fundamentals-1")
+
+    def test_ai_client_prefers_neon_gateway_credentials(self):
+        with patch.dict(os.environ, {
+            "NEON_AI_GATEWAY_TOKEN": "gateway-test-token",
+            "NEON_AI_GATEWAY_BASE_URL": "https://branch-api.ai.example",
+            "OPENAI_API_KEY": "fallback-test-key",
+            "AI_MODEL": "catalog-model",
+            "OPENAI_MODEL": "fallback-model",
+        }), patch("backend.ai_client.OpenAI") as openai_client:
+            create_ai_client()
+            self.assertEqual(configured_model(), "catalog-model")
+        openai_client.assert_called_once_with(
+            api_key="gateway-test-token",
+            base_url="https://branch-api.ai.example/v1",
+            timeout=30.0,
+            max_retries=1,
+        )
+
+    def test_grounded_plan_uses_sources_without_changing_schedule(self):
+        payload = PlanGenerateInput(
+            goal="RAG 학습 코치 만들기",
+            duration_weeks=4,
+            weekly_hours=8,
+            difficulty="balanced",
+            learning_style="project",
+            focus_skills=["LLM·AI Agent 활용"],
+            additional_requirements="검색 출처 표시",
+        )
+        generated_weeks = []
+        for week_no in range(1, 5):
+            generated_weeks.append({
+                "week_no": week_no,
+                "weekly_goal": f"{week_no}주차 RAG 실습 목표",
+                "tasks": [
+                    {
+                        "title": f"{week_no}주차 과제 {task_no}",
+                        "deliverable": "검증 가능한 구현 결과",
+                        "completion_criteria": "테스트와 출처 표시를 확인",
+                        "resource_ids": ["rag-fundamentals-1", "invented-source"],
+                    }
+                    for task_no in range(1, 3)
+                ],
+            })
+        generated_json = json.dumps({"weeks": generated_weeks}, ensure_ascii=False)
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=Mock(
+            return_value=SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=generated_json))]),
+        ))))
+        with patch("backend.main.create_ai_client", return_value=client), patch(
+            "backend.main.search_knowledge",
+            return_value=[{"source_id": "rag-fundamentals-1", "title": "RAG 학습자료: 검색 증강 생성 흐름", "content": "..."}],
+        ):
+            plan = _build_grounded_plan(
+                payload,
+                {"self_assessed_level": "beginner", "interest_skills": ["RAG"]},
+                {"skill_scores": {"LLM·AI Agent 활용": 52}},
+            )
+
+        self.assertEqual(plan["generated_by"], "retrieval_augmented_ai")
+        self.assertEqual(plan["source_ids"], ["rag-fundamentals-1"])
+        self.assertEqual(len(plan["weeks"]), 4)
+        self.assertEqual(plan["weeks"][0]["tasks"][0]["estimated_hours"], 4)
+        self.assertEqual(plan["weeks"][0]["tasks"][0]["learning_resources"], [
+            "[rag-fundamentals-1] RAG 학습자료: 검색 증강 생성 흐름",
+        ])
+        self.assertTrue(all(sum(task["estimated_hours"] for task in week["tasks"]) <= 8 for week in plan["weeks"]))
+        self.assertEqual(_validate_plan(plan), [])
+
+    def test_invalid_ai_plan_falls_back_to_rules(self):
+        payload = PlanGenerateInput(
+            goal="AI Agent 학습",
+            duration_weeks=4,
+            weekly_hours=6,
+            difficulty="foundation",
+            learning_style="examples",
+            focus_skills=["LLM·AI Agent 활용"],
+        )
+        invalid_weeks = []
+        for week_no in range(1, 5):
+            invalid_weeks.append({
+                "week_no": week_no,
+                "weekly_goal": f"AI 주차 {week_no}",
+                "tasks": [
+                    {
+                        "title": f"AI 과제 {week_no}-{task_no}",
+                        "deliverable": "결과물",
+                        "completion_criteria": "테스트 통과",
+                        "resource_ids": ["not-in-retrieved-sources" if week_no == 4 and task_no == 2 else "ai-agent-1"],
+                    }
+                    for task_no in range(1, 3)
+                ],
+            })
+        invalid_json = json.dumps({"weeks": invalid_weeks}, ensure_ascii=False)
+        client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=Mock(
+            return_value=SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=invalid_json))]),
+        ))))
+        with patch("backend.main.create_ai_client", return_value=client), patch(
+            "backend.main.search_knowledge",
+            return_value=[{"source_id": "ai-agent-1", "title": "Agent", "content": "..."}],
+        ):
+            plan = _build_grounded_plan(
+                payload,
+                {"self_assessed_level": "beginner", "interest_skills": []},
+                {"skill_scores": {}},
+            )
+
+        self.assertEqual(plan["generated_by"], "규칙 기반 개인화 플래너")
+        self.assertNotIn("source_ids", plan)
+        self.assertNotIn("AI 과제", plan["weeks"][0]["tasks"][0]["title"])
+        self.assertNotIn("AI 주차", plan["weeks"][0]["weekly_goal"])
+        self.assertEqual(_validate_plan(plan), [])
 
     def test_password_reset_changes_password_once_and_revokes_sessions(self):
         self.signup()
@@ -333,6 +565,12 @@ class DevCoachFlowTests(unittest.TestCase):
         self.assertEqual(dashboard["completed_tasks"], 1)
         self.assertEqual(dashboard["actual_minutes"], 75)
         self.assertEqual(dashboard["weeks"][0]["completed_tasks"], 1)
+        with patch.dict(os.environ, {"ADMIN_EMAILS": "learner@example.com"}):
+            admin_user = self.client.get("/api/admin/overview").json()["users"][0]
+        self.assertEqual(admin_user["total_tasks"], 8)
+        self.assertEqual(admin_user["completed_tasks"], 1)
+        self.assertEqual(admin_user["actual_minutes"], 75)
+        self.assertEqual(admin_user["tasks"][0]["submission_url"], "https://github.com/learner/project")
         self.assertEqual(len(self.client.get(f"/api/tasks/{task_id}/time-logs").json()), 1)
         statistics = self.client.get("/api/progress/statistics")
         self.assertEqual(statistics.status_code, 200, statistics.text)
@@ -418,7 +656,7 @@ class DevCoachFlowTests(unittest.TestCase):
 
         with httpx.Client(transport=httpx.MockTransport(handle_request)) as http_client:
             client = OpenAI(api_key="test-key", http_client=http_client)
-            with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}), patch("backend.main.OpenAI", return_value=client):
+            with patch.dict(os.environ, {"OPENAI_API_KEY": "test-key"}), patch("backend.ai_client.OpenAI", return_value=client):
                 score, feedback = _grade_written_with_openai(QUESTIONS[21], "빈 목록인지 확인하고 예외를 처리합니다.")
         self.assertEqual(score, 8)
         self.assertEqual(len(feedback), 4)
