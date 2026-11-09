@@ -4,7 +4,7 @@ AI DevCoach MVP for account registration, learner profiling, skill assessment, a
 
 ## Live deployments
 
-- Vercel: https://ai-devcoach.vercel.app
+- Vercel: https://ai-dev-coach.vercel.app
 
 ## Run locally
 
