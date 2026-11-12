@@ -1,0 +1,51 @@
+- generic [active] [ref=f1e1]:
+  - generic [ref=f1e2]:
+    - banner [ref=f1e3]:
+      - link "AI DevCoach 홈" [ref=f1e4] [cursor=pointer]:
+        - /url: /
+        - generic [ref=f1e5]: ⌘
+        - generic [ref=f1e6]: AI DevCoach
+      - generic [ref=f1e82]:
+        - button "학습 현황" [ref=f1e83] [cursor=pointer]
+        - button "프로필" [ref=f1e84] [cursor=pointer]
+        - button "로그아웃" [ref=f1e85] [cursor=pointer]
+    - main [ref=f1e7]:
+      - generic [ref=f1e86]:
+        - generic [ref=f1e87]: AI DevCoach · 역량 진단 결과
+        - heading "나의 다음 성장을 확인해요" [level=1] [ref=f1e88]
+        - generic [ref=f1e89]:
+          - generic [ref=f1e90]:
+            - generic [ref=f1e91]: 종합 진단 점수
+            - generic [ref=f1e92]: 입문
+          - generic [ref=f1e93]:
+            - strong [ref=f1e95]: "36"
+            - generic [ref=f1e96]:
+              - heading "입문 단계" [level=2] [ref=f1e97]
+              - paragraph [ref=f1e98]: 종합 36점으로 입문 단계입니다. Python 기초 영역을 우선 보완하고, LLM·AI Agent 활용 강점은 실습 프로젝트에 활용해 보세요.
+          - generic [ref=f1e99]: 객관식 정답 비교 및 OpenAI 루브릭 기반 서술형 의미 평가
+          - heading "영역별 역량 점수" [level=3] [ref=f1e100]
+          - generic [ref=f1e102]:
+            - generic [ref=f1e103]: Python 기초
+            - strong [ref=f1e104]: 0점
+          - generic [ref=f1e107]:
+            - generic [ref=f1e108]: API·데이터 처리
+            - strong [ref=f1e109]: 40점
+          - generic [ref=f1e113]:
+            - generic [ref=f1e114]: Git·GitHub
+            - strong [ref=f1e115]: 60점
+          - generic [ref=f1e119]:
+            - generic [ref=f1e120]: LLM·AI Agent 활용
+            - strong [ref=f1e121]: 80점
+          - generic [ref=f1e125]:
+            - generic [ref=f1e126]: 코드 이해·오류 분석
+            - strong [ref=f1e127]: 0점
+          - generic [ref=f1e129]:
+            - strong [ref=f1e130]: 먼저 보완할 영역
+            - text: "Python 기초 · API·데이터 처리 · 코드 이해·오류 분석강점 영역: LLM·AI Agent 활용"
+          - generic [ref=f1e131]:
+            - button "다시 진단" [ref=f1e132] [cursor=pointer]
+            - button "학습 진도 보기" [ref=f1e133] [cursor=pointer]:
+              - text: 학습 진도 보기
+              - generic [aria-hidden] [ref=f1e134]: →
+    - contentinfo [ref=f1e12]: 학습 추천을 위한 진단입니다. 공인 자격이나 기술 인증을 제공하지 않습니다.
+  - status

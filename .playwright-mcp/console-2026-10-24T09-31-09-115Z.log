@@ -1,0 +1,9 @@
+[   11260ms] [ERROR] Failed to load resource: net::ERR_EMPTY_RESPONSE @ http://127.0.0.1:8000/api/auth/logout:0
+[   11460ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://127.0.0.1:8000/api/progress/dashboard:0
+[   13730ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://127.0.0.1:8000/api/progress/dashboard:0
+[   15081ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://127.0.0.1:8000/api/progress/dashboard:0
+[   15778ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://127.0.0.1:8000/api/progress/dashboard:0
+[   16709ms] [ERROR] Failed to load resource: net::ERR_EMPTY_RESPONSE @ http://127.0.0.1:8000/api/auth/logout:0
+[   18272ms] [ERROR] Failed to load resource: net::ERR_EMPTY_RESPONSE @ http://127.0.0.1:8000/api/auth/logout:0
+[   24117ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://127.0.0.1:8000/api/auth/me:0
+[   28784ms] [ERROR] Failed to load resource: the server responded with a status of 401 (Unauthorized) @ http://127.0.0.1:8000/api/auth/me:0

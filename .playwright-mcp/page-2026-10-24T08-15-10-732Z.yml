@@ -1,0 +1,36 @@
+- generic [active] [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - banner [ref=f2e3]:
+      - link "AI DevCoach 홈" [ref=f2e4] [cursor=pointer]:
+        - /url: /
+        - generic [ref=f2e5]: ⌘
+        - generic [ref=f2e6]: AI DevCoach
+      - navigation "학습 진도 메뉴" [ref=f2e363]:
+        - button "대시보드" [ref=f2e364] [cursor=pointer]
+        - button "과제 관리" [ref=f2e365] [cursor=pointer]
+        - button "학습 통계" [ref=f2e366] [cursor=pointer]
+        - button "학습 코칭" [ref=f2e367] [cursor=pointer]
+        - button "로그아웃" [ref=f2e368] [cursor=pointer]
+    - main [ref=f2e14]:
+      - generic [ref=f2e369]:
+        - generic [ref=f2e370]: 학습 코칭
+        - heading "다음 학습 행동" [level=1] [ref=f2e371]
+        - paragraph [ref=f2e372]: 저장된 과제 상태와 학습시간 기록으로 만든 추천입니다. 기록되지 않은 학습은 추정하지 않습니다.
+        - generic [ref=f2e373]:
+          - text: 현재 진도 0% · 보류 0개
+          - heading "진행 중인 과제 1개를 먼저 마무리해 학습 흐름을 유지해 보세요." [level=2] [ref=f2e374]
+          - list [ref=f2e375]:
+            - listitem [ref=f2e376]: "프로젝트 실습: API와 JSON 데이터 처리의 완료 기준을 확인하고 남은 작업을 정리하기"
+          - text: 기록 기반 규칙 추천 · 2026. 10. 24. 오후 5:15:09
+        - generic [ref=f2e377]:
+          - generic [ref=f2e378]: FR-03 계획 조정 요청
+          - heading "계획 조정이 필요하신가요?" [level=2] [ref=f2e379]
+          - paragraph [ref=f2e380]: 요청은 기록으로 저장됩니다. 현재 계획은 자동으로 변경되지 않습니다.
+          - generic [ref=f2e381]:
+            - generic [ref=f2e382]: 조정이 필요한 이유
+            - textbox "조정이 필요한 이유" [ref=f2e383]:
+              - /placeholder: "예: 이번 주 학습 가능 시간이 줄어들어 남은 과제 일정을 조정하고 싶습니다."
+          - button "재계획 요청 제출" [ref=f2e384] [cursor=pointer]
+        - button "진도 대시보드로 돌아가기" [ref=f2e385] [cursor=pointer]
+    - contentinfo [ref=f2e76]: 학습 추천을 위한 진단입니다. 공인 자격이나 기술 인증을 제공하지 않습니다.
+  - status: 학습시간을 기록했습니다.

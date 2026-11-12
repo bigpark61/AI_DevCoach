@@ -1,0 +1,73 @@
+- generic [active] [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - banner [ref=f2e3]:
+      - link "AI DevCoach 홈" [ref=f2e4] [cursor=pointer]:
+        - /url: /
+        - generic [ref=f2e5]: ⌘
+        - generic [ref=f2e6]: AI DevCoach
+      - navigation "학습 진도 메뉴" [ref=f2e8]:
+        - button "대시보드" [ref=f2e9] [cursor=pointer]
+        - button "과제 관리" [ref=f2e10] [cursor=pointer]
+        - button "학습 통계" [ref=f2e11] [cursor=pointer]
+        - button "학습 코칭" [ref=f2e12] [cursor=pointer]
+        - button "로그아웃" [ref=f2e13] [cursor=pointer]
+    - main [ref=f2e14]:
+      - generic [ref=f2e15]:
+        - generic [ref=f2e16]: 개인별 학습진도
+        - heading "나의 학습 현황" [level=1] [ref=f2e17]
+        - paragraph [ref=f2e18]: AI DevCoach progress management · 4주 학습계획
+        - generic [ref=f2e19]:
+          - generic [ref=f2e20]:
+            - generic [ref=f2e21]: 전체 과제 완료율
+            - strong [ref=f2e22]: 0%
+            - generic [ref=f2e23]: 0/8개 완료
+          - generic [ref=f2e24]:
+            - generic [ref=f2e25]: 누적 학습시간
+            - strong [ref=f2e26]: 0.0h
+            - generic [ref=f2e27]: 계획 32.0h
+          - generic [ref=f2e28]:
+            - generic [ref=f2e29]: 진행 중 과제
+            - strong [ref=f2e30]: 1개
+            - generic [ref=f2e31]: 현재 수행 상태
+          - generic [ref=f2e32]:
+            - generic [ref=f2e33]: 보류 과제
+            - strong [ref=f2e34]: 0개
+            - generic [ref=f2e35]: 도움이 필요한 과제
+        - generic [ref=f2e36]:
+          - generic [ref=f2e37]:
+            - strong [ref=f2e38]: 전체 학습 진도
+            - generic [ref=f2e39]: 0/8 과제
+          - paragraph [ref=f2e41]: 완료율은 완료로 확정한 과제만 반영합니다. 학습시간 달성률과는 별도로 계산됩니다.
+        - generic [ref=f2e42]:
+          - generic [ref=f2e43]:
+            - generic [ref=f2e44]: 주차별 계획
+            - heading "이번 계획의 흐름" [level=2] [ref=f2e45]
+          - button "과제 관리 보기" [ref=f2e46] [cursor=pointer]
+        - generic [ref=f2e47]:
+          - button "1주차 API·데이터 처리 역량을 활용해 AI DevCoach progress management의 1주차 목표 달성 0/2 완료 · 0%" [ref=f2e48] [cursor=pointer]:
+            - generic [ref=f2e49]:
+              - strong [ref=f2e50]: 1주차
+              - generic [ref=f2e51]: API·데이터 처리 역량을 활용해 AI DevCoach progress management의 1주차 목표 달성
+            - generic [ref=f2e52]: 0/2 완료 · 0%
+          - button "2주차 Python 기초 역량을 활용해 AI DevCoach progress management의 2주차 목표 달성 0/2 완료 · 0%" [ref=f2e54] [cursor=pointer]:
+            - generic [ref=f2e55]:
+              - strong [ref=f2e56]: 2주차
+              - generic [ref=f2e57]: Python 기초 역량을 활용해 AI DevCoach progress management의 2주차 목표 달성
+            - generic [ref=f2e58]: 0/2 완료 · 0%
+          - button "3주차 API·데이터 처리 역량을 활용해 AI DevCoach progress management의 3주차 목표 달성 0/2 완료 · 0%" [ref=f2e60] [cursor=pointer]:
+            - generic [ref=f2e61]:
+              - strong [ref=f2e62]: 3주차
+              - generic [ref=f2e63]: API·데이터 처리 역량을 활용해 AI DevCoach progress management의 3주차 목표 달성
+            - generic [ref=f2e64]: 0/2 완료 · 0%
+          - button "4주차 Python 기초 역량을 활용해 AI DevCoach progress management의 4주차 목표 달성 0/2 완료 · 0%" [ref=f2e66] [cursor=pointer]:
+            - generic [ref=f2e67]:
+              - strong [ref=f2e68]: 4주차
+              - generic [ref=f2e69]: Python 기초 역량을 활용해 AI DevCoach progress management의 4주차 목표 달성
+            - generic [ref=f2e70]: 0/2 완료 · 0%
+        - generic [ref=f2e72]:
+          - generic [ref=f2e73]:
+            - text: 학습 코칭
+            - paragraph [ref=f2e74]: 진행 중인 과제 1개를 완료 기준에 맞춰 이어가 보세요.
+          - button "진도 분석 보기" [ref=f2e75] [cursor=pointer]
+    - contentinfo [ref=f2e76]: 학습 추천을 위한 진단입니다. 공인 자격이나 기술 인증을 제공하지 않습니다.
+  - status

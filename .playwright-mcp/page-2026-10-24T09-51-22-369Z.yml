@@ -1,0 +1,44 @@
+- generic [active] [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - banner [ref=f2e3]:
+      - link "AI DevCoach 홈" [ref=f2e4] [cursor=pointer]:
+        - /url: /
+        - generic [ref=f2e5]: ⌘
+        - generic [ref=f2e6]: AI DevCoach
+      - generic [ref=f2e83]:
+        - button "진단 결과" [ref=f2e84] [cursor=pointer]
+        - button "학습 현황" [ref=f2e85] [cursor=pointer]
+        - button "로그아웃" [ref=f2e86] [cursor=pointer]
+    - main [ref=f2e7]:
+      - generic [ref=f2e87]:
+        - generic [ref=f2e88]:
+          - generic [ref=f2e89]: 현재 역량을 확인해요
+          - heading "AI 개발 역량 진단" [level=1] [ref=f2e90]
+          - paragraph [ref=f2e91]: 결과를 바탕으로 나에게 맞는 학습 경로를 설계합니다.
+        - generic [ref=f2e92]:
+          - generic [ref=f2e93]:
+            - generic [ref=f2e94]:
+              - strong [ref=f2e95]: 22문항
+              - text: 진단 문제
+            - generic [ref=f2e96]:
+              - strong [ref=f2e97]: 약 30분
+              - text: 예상 시간
+            - generic [ref=f2e98]:
+              - strong [ref=f2e99]: 5개
+              - text: 평가 영역
+          - heading "평가 영역" [level=3] [ref=f2e100]
+          - generic [ref=f2e101]:
+            - generic [ref=f2e102]: Python 기초
+            - generic [ref=f2e103]: API·데이터 처리
+            - generic [ref=f2e104]: Git·GitHub
+            - generic [ref=f2e105]: LLM·AI Agent 활용
+            - generic [ref=f2e106]: 코드 이해·오류 분석
+          - generic [ref=f2e107]: 객관식 20문항과 코드 이해·오류 분석 서술형 2문항으로 구성됩니다. 답안은 자동 저장되어 나중에 이어 풀 수 있습니다.
+          - paragraph [ref=f2e108]: 객관식은 정답 기준으로 채점하고, 서술형 답변은 OpenAI에 전송해 평가 기준에 따라 AI가 의미를 평가합니다. OpenAI API 키가 없으면 서술형 답변을 채점할 수 없습니다. 진단 결과는 학습 추천용이며 공인된 자격이나 기술 인증을 의미하지 않습니다.
+          - generic [ref=f2e109]:
+            - button "프로필 확인" [ref=f2e110] [cursor=pointer]
+            - button "진단 시작" [ref=f2e111] [cursor=pointer]:
+              - text: 진단 시작
+              - generic [aria-hidden] [ref=f2e112]: →
+    - contentinfo [ref=f2e12]: 학습 추천을 위한 진단입니다. 공인 자격이나 기술 인증을 제공하지 않습니다.
+  - status

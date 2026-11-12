@@ -1,0 +1,27 @@
+- generic [active] [ref=f3e1]:
+  - generic [ref=f3e2]:
+    - banner [ref=f3e3]:
+      - link "AI DevCoach 홈" [ref=f3e4] [cursor=pointer]:
+        - /url: /
+        - generic [ref=f3e5]: ⌘
+        - generic [ref=f3e6]: AI DevCoach
+      - button "계정 만들기" [ref=f3e34] [cursor=pointer]
+    - main [ref=f3e9]:
+      - generic [ref=f3e35]:
+        - generic [ref=f3e36]:
+          - generic [ref=f3e37]: 나만의 AI 개발 학습 코치
+          - heading "다시 만나 반가워요" [level=1] [ref=f3e38]
+          - paragraph [ref=f3e39]: 계정에 로그인하고 이어서 학습하세요.
+        - generic [ref=f3e40]:
+          - generic [ref=f3e41]:
+            - generic [ref=f3e42]: 이메일 주소
+            - textbox "이메일 주소" [ref=f3e43]:
+              - /placeholder: you@example.com
+          - generic [ref=f3e44]:
+            - generic [ref=f3e45]: 비밀번호
+            - textbox "비밀번호" [ref=f3e46]:
+              - /placeholder: 8자 이상 입력
+          - button "로그인" [ref=f3e47] [cursor=pointer]
+        - paragraph [ref=f3e48]: 진단 결과는 학습 추천을 위한 참고 정보이며, 공인된 기술 인증이 아닙니다.
+    - contentinfo [ref=f3e33]: 학습 추천을 위한 진단입니다. 공인 자격이나 기술 인증을 제공하지 않습니다.
+  - status

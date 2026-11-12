@@ -1,0 +1,73 @@
+- generic [active] [ref=f3e1]:
+  - generic [ref=f3e2]:
+    - banner [ref=f3e3]:
+      - link "AI DevCoach 홈" [ref=f3e4] [cursor=pointer]:
+        - /url: /
+        - generic [ref=f3e5]: ⌘
+        - generic [ref=f3e6]: AI DevCoach
+      - navigation "학습 진도 메뉴" [ref=f3e49]:
+        - button "대시보드" [ref=f3e50] [cursor=pointer]
+        - button "과제 관리" [ref=f3e51] [cursor=pointer]
+        - button "학습 통계" [ref=f3e52] [cursor=pointer]
+        - button "학습 코칭" [ref=f3e53] [cursor=pointer]
+        - button "로그아웃" [ref=f3e54] [cursor=pointer]
+    - main [ref=f3e9]:
+      - generic [ref=f3e55]:
+        - generic [ref=f3e56]: 개인별 학습진도
+        - heading "나의 학습 현황" [level=1] [ref=f3e57]
+        - paragraph [ref=f3e58]: AI Agent 웹서비스 개발 · 4주 학습계획
+        - generic [ref=f3e59]:
+          - generic [ref=f3e60]:
+            - generic [ref=f3e61]: 전체 과제 완료율
+            - strong [ref=f3e62]: 0%
+            - generic [ref=f3e63]: 0/8개 완료
+          - generic [ref=f3e64]:
+            - generic [ref=f3e65]: 누적 학습시간
+            - strong [ref=f3e66]: 0.0h
+            - generic [ref=f3e67]: 계획 32.0h
+          - generic [ref=f3e68]:
+            - generic [ref=f3e69]: 진행 중 과제
+            - strong [ref=f3e70]: 0개
+            - generic [ref=f3e71]: 현재 수행 상태
+          - generic [ref=f3e72]:
+            - generic [ref=f3e73]: 보류 과제
+            - strong [ref=f3e74]: 0개
+            - generic [ref=f3e75]: 도움이 필요한 과제
+        - generic [ref=f3e76]:
+          - generic [ref=f3e77]:
+            - strong [ref=f3e78]: 전체 학습 진도
+            - generic [ref=f3e79]: 0/8 과제
+          - paragraph [ref=f3e81]: 완료율은 완료로 확정한 과제만 반영합니다. 학습시간 달성률과는 별도로 계산됩니다.
+        - generic [ref=f3e82]:
+          - generic [ref=f3e83]:
+            - generic [ref=f3e84]: 주차별 계획
+            - heading "이번 계획의 흐름" [level=2] [ref=f3e85]
+          - button "과제 관리 보기" [ref=f3e86] [cursor=pointer]
+        - generic [ref=f3e87]:
+          - button "1주차 Python 기초 역량을 활용해 AI Agent 웹서비스 개발의 1주차 목표 달성 0/2 완료 · 0%" [ref=f3e88] [cursor=pointer]:
+            - generic [ref=f3e89]:
+              - strong [ref=f3e90]: 1주차
+              - generic [ref=f3e91]: Python 기초 역량을 활용해 AI Agent 웹서비스 개발의 1주차 목표 달성
+            - generic [ref=f3e92]: 0/2 완료 · 0%
+          - button "2주차 API·데이터 처리 역량을 활용해 AI Agent 웹서비스 개발의 2주차 목표 달성 0/2 완료 · 0%" [ref=f3e94] [cursor=pointer]:
+            - generic [ref=f3e95]:
+              - strong [ref=f3e96]: 2주차
+              - generic [ref=f3e97]: API·데이터 처리 역량을 활용해 AI Agent 웹서비스 개발의 2주차 목표 달성
+            - generic [ref=f3e98]: 0/2 완료 · 0%
+          - button "3주차 Python 기초 역량을 활용해 AI Agent 웹서비스 개발의 3주차 목표 달성 0/2 완료 · 0%" [ref=f3e100] [cursor=pointer]:
+            - generic [ref=f3e101]:
+              - strong [ref=f3e102]: 3주차
+              - generic [ref=f3e103]: Python 기초 역량을 활용해 AI Agent 웹서비스 개발의 3주차 목표 달성
+            - generic [ref=f3e104]: 0/2 완료 · 0%
+          - button "4주차 API·데이터 처리 역량을 활용해 AI Agent 웹서비스 개발의 4주차 목표 달성 0/2 완료 · 0%" [ref=f3e106] [cursor=pointer]:
+            - generic [ref=f3e107]:
+              - strong [ref=f3e108]: 4주차
+              - generic [ref=f3e109]: API·데이터 처리 역량을 활용해 AI Agent 웹서비스 개발의 4주차 목표 달성
+            - generic [ref=f3e110]: 0/2 완료 · 0%
+        - generic [ref=f3e112]:
+          - generic [ref=f3e113]:
+            - text: 학습 코칭
+            - paragraph [ref=f3e114]: 가장 앞선 미완료 과제부터 작게 시작해 보세요.
+          - button "진도 분석 보기" [ref=f3e115] [cursor=pointer]
+    - contentinfo [ref=f3e33]: 학습 추천을 위한 진단입니다. 공인 자격이나 기술 인증을 제공하지 않습니다.
+  - status
