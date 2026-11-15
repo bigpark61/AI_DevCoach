@@ -18,6 +18,32 @@ Open http://127.0.0.1:8000. Without `DATABASE_URL`, local development uses SQLit
 
 To use Neon/PostgreSQL, set `DATABASE_URL` to the pooled connection string. Set `COOKIE_SECURE=true` when serving over HTTPS. The existing SQLite database is not copied automatically.
 
+### Windows PowerShell: reproducible setup (without `uv`)
+
+The `uv` command above is the documented default. If `uv` is unavailable, use the following steps from the repository root (Python 3.12+ required):
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -m uvicorn backend.main:app --reload
+```
+
+Open `http://127.0.0.1:8000` and `http://127.0.0.1:8000/docs` to check the local app and API documentation. These examples do not require activating PowerShell scripts. If you choose to activate the environment instead, follow your organization's execution-policy rules; do not permanently weaken machine-wide policy.
+
+### Local automated testing and formatting
+
+`pytest` and Black are developer tools and may not be included in `requirements.txt`. With the virtual environment created above:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install pytest black
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m black --check --diff backend/main.py
+```
+
+Black `--check --diff` **inspects but does not modify** files. A result stating `would be reformatted` reports a style difference, not a failing application test. Avoid formatting the entire file as part of an unrelated one-line fix; use a dedicated formatting change after reviewing its diff.
+
+**Observed local verification, 2026-11-15:** In the supplied Windows PowerShell session, `21 passed, 1 warning` was recorded after a change to the activity-log query's tie-break ordering in `backend/main.py`. The warning concerned a deprecated Starlette `TestClient` import. This is a recorded snapshot, not a guarantee that a fresh checkout or deployed service passes all tests today.
+
 ## Password reset
 
 Password reset links are single-use and expire after 30 minutes. Configure `APP_BASE_URL`, `SMTP_HOST`, `SMTP_PORT`, and `SMTP_FROM`, plus `SMTP_USERNAME` and `SMTP_PASSWORD` when required by the provider. Set `SMTP_USE_SSL=true` for implicit TLS; otherwise SMTP STARTTLS is used. Keep SMTP credentials in the ignored `.env` file or deployment secret settings.
@@ -53,7 +79,7 @@ Run migrations before the first deployment and before deploying any later schema
 
 `DATABASE_URL` is used by the app for pooled runtime queries. Alembic prefers `DATABASE_URL_UNPOOLED` for migrations. Both values are loaded from `.env` locally; the environment file is ignored by Git.
 
-Run `npm run build` to compile-check the backend before deployment. `/api/health` verifies database connectivity.
+Run `npm run build` to invoke the project's Python backend compile-check script (`python -m compileall -q backend`); this is **not** a frontend bundle build or a substitute for automated tests. `/api/health` is intended to verify database connectivity; check the actual live response during deployment verification.
 
 ## AI provider, RAG, and learning agent
 
@@ -80,3 +106,55 @@ The AI Coach and plan generator use BM25 retrieval over the curated Markdown lib
 - Source-cited AI Coach with local RAG search and bounded, user-scoped read-only tools.
 
 Plan generation uses retrieved sources when an AI provider is configured, with a deterministic rules-based fallback. Email verification is not configured in this MVP. SMTP must be configured to deliver password-reset links outside local development mode.
+
+
+## Implementation boundaries and current verification
+
+This README describes an **MVP**, not a fully autonomous learning agent. The current RAG implementation performs lexical BM25 retrieval on the bundled Markdown library; it does **not** support embedding-based search or arbitrary external-document ingestion. Agent chat and its tools are currently read-only, and learner progress / plan modifications require their existing dedicated application workflows. An AI provider must be configured for written-answer grading and AI chat.
+
+| Item | Evidence / status |
+| --- | --- |
+| Local Python unit/integration test run | **Observed:** 21 passed, 1 deprecation warning, 2026-11-15 |
+| Activity-log ordering bug fix | **Observed:** `ORDER BY created_at DESC, rowid DESC` tested locally and merged into `main` via GitHub PR, 2026-11-15 |
+| Black style check | **Observed:** Black installed; `backend/main.py` **would be reformatted**; formatting was not applied |
+| GitHub branch / PR | **Observed:** `chore/apply-black` was merged into `main`; despite the branch name, the PR contained an activity-log sorting fix rather than a Black reformat |
+| Vercel deployment | Deployment URL documented above; a GitHub PR preview displayed **Ready**. **Not independently verified:** health, end-to-end signup, database access, AI grading, and post-merge production rollout |
+| PostgreSQL/Neon migrations | Instructions are documented; production migration execution and schema state were **not** verified as part of this review |
+| Authentication, admin, password reset | Described in the project; email delivery, security properties, and production permissions require dedicated staging/production checks |
+
+**SQLite ordering note.** The activity-log table declares a `TEXT PRIMARY KEY`, and the reported local fix sorts by `created_at DESC, rowid DESC`. That tie-break approach is SQLite-specific. If the same query is used against PostgreSQL, verify portability and choose an explicit, database-independent order column/sequence or an equivalent deterministic strategy before production rollout. Test timestamp ties intentionally.
+
+## Post-deployment verification checklist
+
+- [ ] Run `python -m pytest -q` in a freshly installed environment and save the actual output.
+- [ ] Verify `/api/health` on the deployed URL; record the HTTP status and body (without secrets).
+- [ ] Confirm database migrations ran on the intended PostgreSQL branch before deployment.
+- [ ] Verify signup/login/logout, consent, authorization boundaries, and password reset in a non-production test account.
+- [ ] Verify assessment resume, objective scoring, written-answer grading with a configured AI provider, and the no-provider fallback.
+- [ ] Verify plan draft, review, approval, task submission/completion, time logs, and activity-log newest-first order—including equal timestamps.
+- [ ] Confirm AI Coach citations refer to real library documents; verify the read-only tool permissions.
+- [ ] Keep preview and production databases separate; check that no secrets or `.env` files are committed.
+- [ ] Check Vercel production deployment after the `main` merge; a preview's Ready status alone does not establish this.
+
+## Proposed next development milestones (not yet implemented)
+
+1. **Ordering portability and regression tests:** Replace any SQLite-only sorting reliance with an explicit total order that behaves consistently across SQLite and PostgreSQL; add a test with identical timestamps and different insertion order.
+2. **Continuous integration:** Run a clean dependency install, `pytest`, Python compilation, and selected formatting checks on each pull request, without blindly formatting the codebase.
+3. **Agent decision and action loop:** For each learner query, read the profile, prior mistakes, assessment and activity history; determine the next learning action; produce relevant practice; evaluate the response; store errors; and propose a new plan. Any durable plan or progress change should have scoped authorization, validation, logging, and clear user confirmation where appropriate.
+4. **Personalization evaluation:** Define measurable success criteria such as relevance to learner weaknesses, correctness of retrieved citations, successful re-planning, error-revisit rate, and avoidance of duplicate exercises.
+5. **Operations and privacy:** Add health-check evidence, failure alerts, logging/retention policy, backup/restore drills, token/secret handling, and staging/production separation.
+
+## Contribution workflow and shared-computer precautions
+
+```powershell
+git switch main
+git pull origin main
+git switch -c fix/your-change
+# After editing and testing:
+git diff
+git add backend/main.py
+git commit -m "fix: describe the specific change"
+git push -u origin fix/your-change
+```
+
+Open a pull request, review the file changes and checks, then merge. On a shared computer, use repository-scoped Git identity rather than relying on unknown auto-populated author metadata, and sign out of connected services when finished. Do not commit `.env`, credentials, local databases, or `.venv`.
