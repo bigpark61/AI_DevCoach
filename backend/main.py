@@ -2112,7 +2112,7 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             plan_row, plan = active_plan(db, user["id"])
             rows = db.execute(
                 "SELECT id,task_id,event_type,old_value,new_value,created_at FROM learning_activity_logs "
-                "WHERE plan_id=? AND user_id=? ORDER BY created_at DESC LIMIT 100",
+                "WHERE plan_id=? AND user_id=? ORDER BY created_at DESC, rowid DESC LIMIT 100",
                 (plan_row["id"], user["id"]),
             ).fetchall()
         task_index = {
