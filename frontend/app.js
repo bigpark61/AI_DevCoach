@@ -735,6 +735,7 @@ async function openProgressView(view) {
   try {
     state.progress = await api("/api/progress/dashboard");
     if (view === "agent") {
+      state.agentHistory = (await api("/api/agent/history")).messages;
       return renderAgentChat();
     }
     if (view === "history") {
@@ -974,17 +975,7 @@ function renderProgressCoach() {
   const coach = state.coachFeedback;
   main.innerHTML = `<section class="progress-page"><div class="eyebrow">학습 코칭</div><h1>다음 학습 행동</h1><p class="subtitle">저장된 과제 상태와 학습시간 기록으로 만든 추천입니다. 기록되지 않은 학습은 추정하지 않습니다.</p>
     <div class="coach-panel"><span class="coach-label">현재 진도 ${coach.completion_rate}% · 보류 ${coach.blocked_tasks}개</span><h2>${escapeHtml(coach.summary)}</h2><ul>${coach.actions.map((action) => `<li>${escapeHtml(action)}</li>`).join("")}</ul><small>기록 기반 규칙 추천 · ${new Date(coach.generated_at).toLocaleString("ko-KR")}</small></div>
-    <form id="revision-request-form" class="progress-form"><div class="eyebrow">FR-03 계획 조정 요청</div><h2>계획 조정이 필요하신가요?</h2><p class="tiny muted">요청은 기록으로 저장됩니다. 현재 계획은 자동으로 변경되지 않습니다.</p><div class="field"><label for="revision-reason">조정이 필요한 이유</label><textarea id="revision-reason" name="reason" maxlength="2000" required placeholder="예: 이번 주 학습 가능 시간이 줄어들어 남은 과제 일정을 조정하고 싶습니다."></textarea></div><button class="btn" type="submit">재계획 요청 제출</button></form>
     <button class="text-button" id="back-progress">진도 대시보드로 돌아가기</button></section>`;
-  document.querySelector("#revision-request-form").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const reason = new FormData(event.currentTarget).get("reason");
-    try {
-      await api(`/api/plans/${encodeURIComponent(state.progress.plan_id)}/revision-request`, { method: "POST", body: JSON.stringify({ reason }) });
-      showToast("재계획 요청을 저장했습니다.");
-      event.currentTarget.reset();
-    } catch (err) { showToast(err.message); }
-  });
   document.querySelector("#back-progress").addEventListener("click", () => openProgressView("dashboard"));
 }
 
@@ -1019,10 +1010,7 @@ function renderAgentChat() {
     try {
       const response = await api("/api/agent/chat", {
         method: "POST",
-        body: JSON.stringify({
-          message,
-          history: state.agentHistory.slice(0, -1).slice(-8).map(({ role, content }) => ({ role, content })),
-        }),
+        body: JSON.stringify({ message }),
       });
       state.agentHistory.push({ role: "assistant", content: response.reply, sources: response.sources });
     } catch (err) {
