@@ -13,7 +13,7 @@ depends_on = None
 def upgrade() -> None:
     op.create_table(
         "agent_chat_messages",
-        sa.Column("id", sa.BigInteger().with_variant(sa.Integer(), "sqlite"), autoincrement=True, nullable=False),
+        sa.Column("id", sa.BigInteger(), autoincrement=True, nullable=False),
         sa.Column("user_id", sa.Text(), nullable=False),
         sa.Column("role", sa.Text(), nullable=False),
         sa.Column("content", sa.Text(), nullable=False),

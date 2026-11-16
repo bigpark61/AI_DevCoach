@@ -755,6 +755,10 @@ async function openProgressView(view) {
   setLoading("학습 진도를 불러오고 있어요");
   try {
     state.progress = await api("/api/progress/dashboard");
+    if (view === "agent") {
+      state.agentHistory = (await api("/api/agent/history")).messages;
+      return renderAgentChat();
+    }
     if (view === "history") {
       [state.progressStats, state.activityRows] = await Promise.all([
         api("/api/progress/statistics"), api("/api/progress/activities"),
@@ -1060,6 +1064,7 @@ function renderAgentChat() {
     try {
       const response = await api("/api/agent/chat", {
         method: "POST",
+        body: JSON.stringify({ message }),
         body: JSON.stringify({ message }),
       });
       if (!isAgentSessionCurrent(sessionVersion, userId)) return;
