@@ -1113,6 +1113,16 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
                     result TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 );
+                CREATE TABLE IF NOT EXISTS agent_chat_messages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                    role TEXT NOT NULL CHECK(role IN ('user','assistant')),
+                    content TEXT NOT NULL,
+                    sources_json TEXT NOT NULL DEFAULT '[]',
+                    created_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS ix_agent_chat_messages_user_id_id
+                    ON agent_chat_messages(user_id, id);
             """)
             user_columns = {
                 row["name"] for row in db.execute("PRAGMA table_info(users)").fetchall()
@@ -2112,7 +2122,7 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             plan_row, plan = active_plan(db, user["id"])
             rows = db.execute(
                 "SELECT id,task_id,event_type,old_value,new_value,created_at FROM learning_activity_logs "
-                "WHERE plan_id=? AND user_id=? ORDER BY created_at DESC, rowid DESC LIMIT 100",
+                "WHERE plan_id=? AND user_id=? ORDER BY created_at DESC, id DESC LIMIT 100",
                 (plan_row["id"], user["id"]),
             ).fetchall()
         task_index = {
@@ -2186,6 +2196,24 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             "blocked_tasks": dashboard["blocked_tasks"], "generated_at": _utcnow().isoformat(),
         }
 
+    @app.get("/api/agent/history")
+    def agent_chat_history(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+        with connect() as db:
+            rows = db.execute(
+                "SELECT id, role, content, sources_json, created_at "
+                "FROM agent_chat_messages WHERE user_id=? ORDER BY id",
+                (user["id"],),
+            ).fetchall()
+        return {
+            "messages": [
+                {
+                    "id": row["id"], "role": row["role"], "content": row["content"],
+                    "sources": json.loads(row["sources_json"]), "created_at": row["created_at"],
+                }
+                for row in rows
+            ]
+        }
+
     @app.post("/api/agent/chat")
     def agent_chat(payload: AgentChatInput, user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
         client = create_ai_client()
@@ -2238,7 +2266,16 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             ]
             return {"tasks": tasks[:40], "task_count": len(tasks)}
 
-        history = [item.model_dump() for item in payload.history]
+        with connect() as db:
+            recent_rows = db.execute(
+                "SELECT role, content FROM agent_chat_messages WHERE user_id=? "
+                "ORDER BY id DESC LIMIT 8",
+                (user["id"],),
+            ).fetchall()
+        history = [
+            {"role": row["role"], "content": row["content"]}
+            for row in reversed(recent_rows)
+        ]
         try:
             result = run_learning_agent(
                 client=client,
@@ -2263,7 +2300,20 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             lambda match: match.group(0) if match.group(1) in valid_source_ids else "",
             result["reply"],
         )
-        return {**result, "sources": list(retrieved_sources.values())}
+        sources = list(retrieved_sources.values())
+        created_at = _utcnow().isoformat()
+        with connect() as db:
+            db.execute(
+                "INSERT INTO agent_chat_messages(user_id,role,content,sources_json,created_at) "
+                "VALUES(?,?,?,?,?)",
+                (user["id"], "user", payload.message, "[]", created_at),
+            )
+            db.execute(
+                "INSERT INTO agent_chat_messages(user_id,role,content,sources_json,created_at) "
+                "VALUES(?,?,?,?,?)",
+                (user["id"], "assistant", result["reply"], json.dumps(sources, ensure_ascii=False), created_at),
+            )
+        return {**result, "sources": sources}
 
     @app.post("/api/plans/{plan_id}/revision-request", status_code=201)
     def request_plan_revision(
