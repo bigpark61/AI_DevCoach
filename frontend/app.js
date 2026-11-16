@@ -4,7 +4,24 @@ const toast = document.querySelector("#toast");
 
 const SKILLS = ["Python 기초", "API·데이터 처리", "Git·GitHub", "LLM·AI Agent 활용", "코드 이해·오류 분석"];
 const INTERESTS = ["Python", "HTML/CSS", "Git/GitHub", "JavaScript", "FastAPI", "LLM API", "RAG", "AI Agent"];
-const state = { user: null, questions: [], assessmentId: null, answers: {}, assessmentResult: null, profile: null, plan: null, progress: null, progressView: "dashboard", selectedWeek: 1, selectedTask: null, taskDetail: null, progressStats: null, activityRows: [], coachFeedback: null, agentHistory: [], agentBusy: false, githubAnalyses: [], githubResult: null, adminOverview: null, adminSearch: "", selectedAdminUserId: null, adminViewActive: false };
+const state = { user: null, questions: [], assessmentId: null, answers: {}, assessmentResult: null, profile: null, plan: null, progress: null, progressView: "dashboard", selectedWeek: 1, selectedTask: null, taskDetail: null, progressStats: null, activityRows: [], coachFeedback: null, agentHistory: [], agentBusy: false, agentDraft: "", agentError: "", githubAnalyses: [], githubResult: null, adminOverview: null, adminSearch: "", selectedAdminUserId: null, adminViewActive: false };
+
+// A response from a previous login must never update another user's screen.
+let agentSessionVersion = 0;
+let progressNavigationVersion = 0;
+
+function resetAgentSession() {
+  agentSessionVersion += 1;
+  progressNavigationVersion += 1;
+  state.agentHistory = [];
+  state.agentBusy = false;
+  state.agentDraft = "";
+  state.agentError = "";
+}
+
+function isAgentSessionCurrent(version, userId) {
+  return version === agentSessionVersion && userId === state.user?.id;
+}
 
 function escapeHtml(value = "") {
   return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
@@ -92,7 +109,9 @@ function renderAuth(mode = "login", error = "") {
         payload.terms_agreed = form.has("terms_agreed");
         payload.privacy_agreed = form.has("privacy_agreed");
       }
-      state.user = await api(`/api/auth/${login ? "login" : "signup"}`, { method: "POST", body: JSON.stringify(payload) });
+      const user = await api(`/api/auth/${login ? "login" : "signup"}`, { method: "POST", body: JSON.stringify(payload) });
+      resetAgentSession();
+      state.user = user;
       await continueUser();
     } catch (err) {
       button.disabled = false;
@@ -218,7 +237,9 @@ async function logout() {
     showToast(err.message);
     return;
   }
+  resetAgentSession();
   state.user = null;
+  state.progressView = "dashboard";
   state.questions = [];
   state.assessmentId = null;
   state.answers = {};
@@ -232,8 +253,6 @@ async function logout() {
   state.progressStats = null;
   state.activityRows = [];
   state.coachFeedback = null;
-  state.agentHistory = [];
-  state.agentBusy = false;
   renderAuth("login");
 }
 
@@ -717,9 +736,11 @@ function renderAdminView() {
 }
 
 async function openProgressView(view) {
+  progressNavigationVersion += 1;
   state.adminViewActive = false;
   state.progressView = view;
   state.taskDetail = null;
+  if (view === "agent") return openAgentChatView();
   if (view === "github") {
     setLoading("GitHub 분석 이력을 불러오고 있어요");
     try {
@@ -734,9 +755,6 @@ async function openProgressView(view) {
   setLoading("학습 진도를 불러오고 있어요");
   try {
     state.progress = await api("/api/progress/dashboard");
-    if (view === "agent") {
-      return renderAgentChat();
-    }
     if (view === "history") {
       [state.progressStats, state.activityRows] = await Promise.all([
         api("/api/progress/statistics"), api("/api/progress/activities"),
@@ -974,18 +992,32 @@ function renderProgressCoach() {
   const coach = state.coachFeedback;
   main.innerHTML = `<section class="progress-page"><div class="eyebrow">학습 코칭</div><h1>다음 학습 행동</h1><p class="subtitle">저장된 과제 상태와 학습시간 기록으로 만든 추천입니다. 기록되지 않은 학습은 추정하지 않습니다.</p>
     <div class="coach-panel"><span class="coach-label">현재 진도 ${coach.completion_rate}% · 보류 ${coach.blocked_tasks}개</span><h2>${escapeHtml(coach.summary)}</h2><ul>${coach.actions.map((action) => `<li>${escapeHtml(action)}</li>`).join("")}</ul><small>기록 기반 규칙 추천 · ${new Date(coach.generated_at).toLocaleString("ko-KR")}</small></div>
-    <form id="revision-request-form" class="progress-form"><div class="eyebrow">FR-03 계획 조정 요청</div><h2>계획 조정이 필요하신가요?</h2><p class="tiny muted">요청은 기록으로 저장됩니다. 현재 계획은 자동으로 변경되지 않습니다.</p><div class="field"><label for="revision-reason">조정이 필요한 이유</label><textarea id="revision-reason" name="reason" maxlength="2000" required placeholder="예: 이번 주 학습 가능 시간이 줄어들어 남은 과제 일정을 조정하고 싶습니다."></textarea></div><button class="btn" type="submit">재계획 요청 제출</button></form>
     <button class="text-button" id="back-progress">진도 대시보드로 돌아가기</button></section>`;
-  document.querySelector("#revision-request-form").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const reason = new FormData(event.currentTarget).get("reason");
-    try {
-      await api(`/api/plans/${encodeURIComponent(state.progress.plan_id)}/revision-request`, { method: "POST", body: JSON.stringify({ reason }) });
-      showToast("재계획 요청을 저장했습니다.");
-      event.currentTarget.reset();
-    } catch (err) { showToast(err.message); }
-  });
   document.querySelector("#back-progress").addEventListener("click", () => openProgressView("dashboard"));
+}
+
+async function openAgentChatView() {
+  const sessionVersion = agentSessionVersion;
+  const navigationVersion = progressNavigationVersion;
+  const userId = state.user?.id;
+  progressNavigation("agent");
+  // Revisiting while sending must not replace the pending message with older history.
+  if (state.agentBusy) return renderAgentChat();
+  main.innerHTML = `<section id="agent-history-loading" class="loading"><p>저장된 AI 코치 대화를 불러오는 중...</p></section>`;
+  const isCurrentView = () => isAgentSessionCurrent(sessionVersion, userId)
+    && navigationVersion === progressNavigationVersion
+    && state.progressView === "agent" && !state.adminViewActive
+    && document.querySelector("#agent-history-loading");
+  try {
+    const history = await api("/api/agent/history");
+    if (!isCurrentView()) return;
+    state.agentHistory = history.messages;
+    renderAgentChat();
+  } catch (err) {
+    if (!isCurrentView()) return;
+    main.innerHTML = `<section class="narrow card center"><h2>대화 기록을 불러오지 못했습니다</h2><p class="muted">${escapeHtml(err.message)}</p><button id="retry-agent-history" class="btn">다시 시도</button></section>`;
+    document.querySelector("#retry-agent-history").addEventListener("click", () => openProgressView("agent"));
+  }
 }
 
 function renderAgentChat() {
@@ -997,39 +1029,55 @@ function renderAgentChat() {
   </article>`).join("");
   main.innerHTML = `<section class="progress-page agent-page">
     <div class="eyebrow">검색 증강 학습 지원</div><h1>AI 학습 코치</h1>
-    <p class="subtitle">과제 진행을 묻거나 학습 자료를 검색해 보세요.</p>
+    <p class="subtitle">완료된 질문과 답변은 계정별로 저장되며, 다시 로그인한 뒤 AI 코치를 열면 불러옵니다.</p>
     <div class="agent-chat-log" id="agent-chat-log" aria-live="polite">${messages || `<div class="agent-empty">무엇을 학습하고 있나요?</div>`}</div>
+    <div id="agent-chat-error" class="error ${state.agentError ? "show" : ""}" role="alert">${escapeHtml(state.agentError)}</div>
     <form class="agent-composer" id="agent-chat-form">
       <label for="agent-message">메시지</label>
-      <textarea id="agent-message" name="message" maxlength="2000" placeholder="예: RAG에서 출처를 표시해야 하는 이유를 알려줘" required></textarea>
-      <div class="agent-composer-footer"><span class="tiny muted">개인 진도는 로그인한 계정의 기록만 조회합니다.</span><button class="btn" type="submit" ${state.agentBusy ? "disabled" : ""}>${state.agentBusy ? "답변 생성 중..." : "보내기"}</button></div>
+      <textarea id="agent-message" name="message" maxlength="2000" placeholder="예: RAG에서 출처를 표시해야 하는 이유를 알려줘" required ${state.agentBusy ? "disabled" : ""}>${escapeHtml(state.agentDraft)}</textarea>
+      <div class="agent-composer-footer"><span class="tiny muted">로그아웃하면 이 화면은 비워지지만 저장된 대화는 유지됩니다.</span><button class="btn" type="submit" ${state.agentBusy ? "disabled" : ""}>${state.agentBusy ? "답변 생성 중..." : "보내기"}</button></div>
     </form>
   </section>`;
   const log = document.querySelector("#agent-chat-log");
   log.scrollTop = log.scrollHeight;
+  document.querySelector("#agent-message").addEventListener("input", (event) => {
+    state.agentDraft = event.target.value;
+  });
   document.querySelector("#agent-chat-form").addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (state.agentBusy) return;
+    if (state.agentBusy || !state.user) return;
     const form = new FormData(event.currentTarget);
     const message = String(form.get("message") || "").trim();
     if (!message) return;
-    state.agentHistory.push({ role: "user", content: message });
+    const sessionVersion = agentSessionVersion;
+    const userId = state.user.id;
+    const pendingMessage = { role: "user", content: message };
+    state.agentHistory.push(pendingMessage);
     state.agentBusy = true;
+    state.agentDraft = "";
+    state.agentError = "";
     renderAgentChat();
     try {
       const response = await api("/api/agent/chat", {
         method: "POST",
-        body: JSON.stringify({
-          message,
-          history: state.agentHistory.slice(0, -1).slice(-8).map(({ role, content }) => ({ role, content })),
-        }),
+        body: JSON.stringify({ message }),
       });
+      if (!isAgentSessionCurrent(sessionVersion, userId)) return;
       state.agentHistory.push({ role: "assistant", content: response.reply, sources: response.sources });
     } catch (err) {
-      state.agentHistory.push({ role: "assistant", content: err.message, sources: [] });
+      if (!isAgentSessionCurrent(sessionVersion, userId)) return;
+      // Transport errors are not saved AI answers. Keep the draft for an explicit retry.
+      state.agentHistory = state.agentHistory.filter((item) => item !== pendingMessage);
+      state.agentDraft = message;
+      state.agentError = `${err.message} 전송 결과가 확실하지 않으면 AI 코치를 다시 열어 저장 내역을 확인한 후 재시도해 주세요.`;
     } finally {
-      state.agentBusy = false;
-      renderAgentChat();
+      if (isAgentSessionCurrent(sessionVersion, userId)) {
+        state.agentBusy = false;
+        // Do not navigate back to chat after the learner opened another screen.
+        if (state.progressView === "agent" && !state.adminViewActive && document.querySelector("#agent-chat-form")) {
+          renderAgentChat();
+        }
+      }
     }
   });
 }

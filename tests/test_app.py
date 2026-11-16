@@ -173,6 +173,7 @@ class DevCoachFlowTests(unittest.TestCase):
 
     def test_agent_chat_returns_only_retrieved_citations(self):
         self.signup("rag-learner@example.com")
+        self.assertEqual(self.client.get("/api/agent/history").json()["messages"], [])
         tool_call = SimpleNamespace(
             id="call-search",
             function=SimpleNamespace(
@@ -205,6 +206,22 @@ class DevCoachFlowTests(unittest.TestCase):
         self.assertIn("[rag-fundamentals-1]", response.json()["reply"])
         self.assertNotIn("unknown-source", response.json()["reply"])
         self.assertEqual(response.json()["sources"][0]["source_id"], "rag-fundamentals-1")
+        history = self.client.get("/api/agent/history").json()["messages"]
+        self.assertEqual([message["role"] for message in history], ["user", "assistant"])
+        self.assertEqual(history[0]["content"], "RAG 출처 근거는?")
+        self.assertEqual(history[1]["content"], response.json()["reply"])
+        self.assertEqual(history[1]["sources"][0]["source_id"], "rag-fundamentals-1")
+
+        self.assertEqual(self.client.post("/api/auth/logout").status_code, 204)
+        login = self.client.post(
+            "/api/auth/login",
+            json={"email": "rag-learner@example.com", "password": "correct-horse-42"},
+        )
+        self.assertEqual(login.status_code, 200)
+        restored_history = self.client.get("/api/agent/history").json()["messages"]
+        self.assertEqual([message["content"] for message in restored_history], [
+            "RAG 출처 근거는?", response.json()["reply"],
+        ])
 
     def test_ai_client_prefers_neon_gateway_credentials(self):
         with patch.dict(os.environ, {
