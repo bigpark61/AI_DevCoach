@@ -2,6 +2,12 @@
 
 AI DevCoach MVP for account registration, learner profiling, skill assessment, and personalized learning plans.
 
+**2026-11-18 code-quality update:** Ruff, Black and ESLint checks pass. After adding
+chat-history response cache headers, all 30 application tests pass in the verification environment.
+The previous 29/30 result is retained in the dated historical record. See the
+[Korean lint setup and follow-up guide](docs/lint-guide-ko.md) and
+[verification record](docs/testing/2026-11-18-cache-headers.md). Earlier dated verification below is historical.
+
 ## Live deployments
 
 - Vercel: https://ai-dev-coach.vercel.app
@@ -32,15 +38,18 @@ Open `http://127.0.0.1:8000` and `http://127.0.0.1:8000/docs` to check the local
 
 ### Local automated testing and formatting
 
-`pytest` and Black are developer tools and may not be included in `requirements.txt`. With the virtual environment created above:
+Install the pinned development tools, then run the shared checks (Python 3.12+, Node.js 24+ recommended):
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install pytest black
-.\.venv\Scripts\python.exe -m pytest -q
-.\.venv\Scripts\python.exe -m black --check --diff backend/main.py
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+npm ci
+.\.venv\Scripts\python.exe scripts/check_quality.py
+.\.venv\Scripts\python.exe scripts/check_quality.py --test
 ```
 
-Black `--check --diff` **inspects but does not modify** files. A result stating `would be reformatted` reports a style difference, not a failing application test. Avoid formatting the entire file as part of an unrelated one-line fix; use a dedicated formatting change after reviewing its diff.
+The script **checks without modifying source files**. It runs Ruff, Black and ESLint;
+`--test` also runs unittest and Python compilation. Missing tools and failed checks produce
+a nonzero exit code. Lint success does not establish functional correctness.
 
 **Observed local verification, 2026-11-15:** In the supplied Windows PowerShell session, `21 passed, 1 warning` was recorded after a change to the activity-log query's tie-break ordering in `backend/main.py`. The warning concerned a deprecated Starlette `TestClient` import. This is a recorded snapshot, not a guarantee that a fresh checkout or deployed service passes all tests today.
 
@@ -197,15 +206,20 @@ python -m venv .venv
 
 ### 로컬 자동 테스트 및 코드 형식 검사
 
-`pytest`와 Black은 개발용 도구로, `requirements.txt`에 포함되지 않을 수 있습니다. 앞에서 가상환경을 생성했다면 다음 명령어를 사용합니다.
+Python 3.12 이상, Node.js 24 이상을 권장합니다. 개발 도구를 설치하고 팀 공통 명령으로 검사합니다.
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install pytest black
-.\.venv\Scripts\python.exe -m pytest -q
-.\.venv\Scripts\python.exe -m black --check --diff backend/main.py
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+npm ci
+.\.venv\Scripts\python.exe scripts/check_quality.py
+.\.venv\Scripts\python.exe scripts/check_quality.py --test
 ```
 
-Black의 `--check --diff`는 **파일 내용을 검사하지만 수정하지 않습니다.** `would be reformatted`라는 메시지는 코드 스타일 차이가 있다는 의미이며 애플리케이션 테스트 실패를 뜻하지 않습니다. 코드 한 줄의 오류를 수정하면서 관련 없는 파일 전체를 포맷팅하지 말고, 전체 포맷팅은 변경 내역을 검토한 뒤 별도의 작업으로 처리하는 것이 좋습니다.
+스크립트는 **소스 파일을 수정하지 않고** Ruff·Black·ESLint 검사를 실행합니다.
+`--test`를 붙이면 unittest와 Python 컴파일 검사도 실행합니다. 2026년 11월 18일
+캐시 헤더 수정 후 검증 환경에서 Lint·포맷·컴파일과 기능 테스트 30개가 모두 통과했습니다.
+자세한 설치와 후속 작업은 [Lint 실행 안내](docs/lint-guide-ko.md), 실제 결과와
+미검증 범위는 [검증 기록](docs/testing/2026-11-18-cache-headers.md)을 확인하세요.
 
 **2026년 11월 15일 로컬 검증 기록:** 제공된 Windows PowerShell 실행 화면에서 `backend/main.py`의 활동 기록 조회 순서를 수정한 뒤 `21 passed, 1 warning`이 확인되었습니다. 경고는 Starlette `TestClient`의 사용 중단 예정(deprecated) 가져오기 방식과 관련이 있습니다. 이는 당시 확인된 실행 기록이며, 새로 내려받은 저장소나 현재 배포된 서비스의 모든 테스트가 통과한다는 보장은 아닙니다.
 

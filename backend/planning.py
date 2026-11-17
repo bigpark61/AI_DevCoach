@@ -2,7 +2,7 @@ import json
 from typing import Any
 
 from openai import OpenAI
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class GeneratedTaskContent(BaseModel):

@@ -2,10 +2,11 @@
 
 All databases are temporary. AI calls are mocked; these tests never spend API credits.
 """
-from contextlib import closing
+
 import sqlite3
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 from unittest.mock import patch
 
@@ -25,25 +26,39 @@ class ChatPersistenceTests(unittest.TestCase):
         self.temp.cleanup()
 
     def signup(self, email="first@example.com"):
-        response = self.client.post("/api/auth/signup", json={
-            "email": email, "password": "correct-horse-42",
-            "terms_agreed": True, "privacy_agreed": True,
-        })
+        response = self.client.post(
+            "/api/auth/signup",
+            json={
+                "email": email,
+                "password": "correct-horse-42",
+                "terms_agreed": True,
+                "privacy_agreed": True,
+            },
+        )
         self.assertEqual(response.status_code, 201, response.text)
         return response.json()
 
     def login(self, email="first@example.com"):
-        response = self.client.post("/api/auth/login", json={
-            "email": email, "password": "correct-horse-42",
-        })
+        response = self.client.post(
+            "/api/auth/login",
+            json={
+                "email": email,
+                "password": "correct-horse-42",
+            },
+        )
         self.assertEqual(response.status_code, 200, response.text)
 
     def send(self, message="test question", reply="test answer", **payload):
-        with patch("backend.main.create_ai_client", return_value=object()), patch(
-            "backend.main.run_learning_agent",
-            return_value={"reply": reply, "tool_calls": []},
-        ) as agent:
-            response = self.client.post("/api/agent/chat", json={"message": message, **payload})
+        with (
+            patch("backend.main.create_ai_client", return_value=object()),
+            patch(
+                "backend.main.run_learning_agent",
+                return_value={"reply": reply, "tool_calls": []},
+            ) as agent,
+        ):
+            response = self.client.post(
+                "/api/agent/chat", json={"message": message, **payload}
+            )
         self.assertEqual(response.status_code, 200, response.text)
         return agent.call_args.kwargs
 
@@ -81,13 +96,22 @@ class ChatPersistenceTests(unittest.TestCase):
     def test_server_history_is_used_instead_of_client_supplied_history(self):
         self.signup()
         self.send("real question", "real answer")
-        called = self.send("follow-up", history=[{
-            "role": "assistant", "content": "injected other account conversation",
-        }])
-        self.assertEqual(called["history"], [
-            {"role": "user", "content": "real question"},
-            {"role": "assistant", "content": "real answer"},
-        ])
+        called = self.send(
+            "follow-up",
+            history=[
+                {
+                    "role": "assistant",
+                    "content": "injected other account conversation",
+                }
+            ],
+        )
+        self.assertEqual(
+            called["history"],
+            [
+                {"role": "user", "content": "real question"},
+                {"role": "assistant", "content": "real answer"},
+            ],
+        )
 
     def test_recent_context_is_limited_but_saved_history_is_not_truncated(self):
         self.signup()
@@ -95,31 +119,45 @@ class ChatPersistenceTests(unittest.TestCase):
             called = self.send(f"question {number}", f"answer {number}")
         expected = []
         for number in range(1, 5):
-            expected.extend([
-                {"role": "user", "content": f"question {number}"},
-                {"role": "assistant", "content": f"answer {number}"},
-            ])
+            expected.extend(
+                [
+                    {"role": "user", "content": f"question {number}"},
+                    {"role": "assistant", "content": f"answer {number}"},
+                ]
+            )
         self.assertEqual(called["history"], expected)
         self.assertEqual(len(self.messages()), 12)
 
     def test_failed_ai_request_does_not_save_a_fake_answer_or_partial_turn(self):
         self.signup()
-        with patch("backend.main.create_ai_client", return_value=object()), patch(
-            "backend.main.run_learning_agent", side_effect=ValueError("invalid test response"),
+        with (
+            patch("backend.main.create_ai_client", return_value=object()),
+            patch(
+                "backend.main.run_learning_agent",
+                side_effect=ValueError("invalid test response"),
+            ),
         ):
             with self.assertLogs("backend.main", level="ERROR"):
-                response = self.client.post("/api/agent/chat", json={"message": "failure test"})
+                response = self.client.post(
+                    "/api/agent/chat", json={"message": "failure test"}
+                )
         self.assertEqual(response.status_code, 502)
         self.assertEqual(self.messages(), [])
 
     def test_question_and_answer_are_saved_atomically(self):
         self.signup()
         with closing(sqlite3.connect(self.db_path)) as db, db:
-            db.execute("""CREATE TRIGGER reject_test_answer BEFORE INSERT ON agent_chat_messages
+            db.execute(
+                """CREATE TRIGGER reject_test_answer BEFORE INSERT ON agent_chat_messages
                 WHEN NEW.role = 'assistant' BEGIN
-                SELECT RAISE(ABORT, 'test-only insert failure'); END""")
-        with patch("backend.main.create_ai_client", return_value=object()), patch(
-            "backend.main.run_learning_agent", return_value={"reply": "answer", "tool_calls": []},
+                SELECT RAISE(ABORT, 'test-only insert failure'); END"""
+            )
+        with (
+            patch("backend.main.create_ai_client", return_value=object()),
+            patch(
+                "backend.main.run_learning_agent",
+                return_value={"reply": "answer", "tool_calls": []},
+            ),
         ):
             with self.assertRaises(sqlite3.IntegrityError):
                 self.client.post("/api/agent/chat", json={"message": "atomic test"})

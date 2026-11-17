@@ -1,11 +1,10 @@
-from logging.config import fileConfig
 import os
+from logging.config import fileConfig
 from pathlib import Path
 
 from alembic import context
 from dotenv import load_dotenv
 from sqlalchemy import engine_from_config, pool
-
 
 config = context.config
 if config.config_file_name is not None:
@@ -15,7 +14,9 @@ root = Path(__file__).resolve().parents[1]
 load_dotenv(root / ".env", override=False)
 database_url = os.getenv("DATABASE_URL_UNPOOLED") or os.getenv("DATABASE_URL")
 if not database_url:
-    raise RuntimeError("DATABASE_URL_UNPOOLED or DATABASE_URL must be set to run migrations")
+    raise RuntimeError(
+        "DATABASE_URL_UNPOOLED or DATABASE_URL must be set to run migrations"
+    )
 if database_url.startswith("postgres://"):
     database_url = "postgresql+psycopg://" + database_url.removeprefix("postgres://")
 elif database_url.startswith("postgresql://"):
@@ -42,7 +43,9 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata, compare_type=True)
+        context.configure(
+            connection=connection, target_metadata=target_metadata, compare_type=True
+        )
         with context.begin_transaction():
             context.run_migrations()
 

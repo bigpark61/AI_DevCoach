@@ -1,8 +1,7 @@
 """Store GitHub project analysis runs."""
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 revision = "0002_github_analysis"
 down_revision = "0001_initial_schema"
@@ -14,7 +13,12 @@ def upgrade() -> None:
     op.create_table(
         "github_analysis_runs",
         sa.Column("id", sa.Text(), primary_key=True),
-        sa.Column("user_id", sa.Text(), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id",
+            sa.Text(),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("owner", sa.Text(), nullable=False),
         sa.Column("repo_name", sa.Text(), nullable=False),
         sa.Column("repo_url", sa.Text(), nullable=False),

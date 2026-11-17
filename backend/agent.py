@@ -4,7 +4,6 @@ from typing import Any
 
 from openai import OpenAI
 
-
 ToolHandler = Callable[[dict[str, Any]], dict[str, Any]]
 
 TOOL_DEFINITIONS = [
@@ -29,7 +28,10 @@ TOOL_DEFINITIONS = [
             "description": "Read the authenticated learner's current plan progress summary.",
             "strict": True,
             "parameters": {
-                "type": "object", "properties": {}, "required": [], "additionalProperties": False,
+                "type": "object",
+                "properties": {},
+                "required": [],
+                "additionalProperties": False,
             },
         },
     },
@@ -42,7 +44,10 @@ TOOL_DEFINITIONS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "status": {"type": ["string", "null"], "enum": ["todo", "in_progress", "completed", "blocked", None]},
+                    "status": {
+                        "type": ["string", "null"],
+                        "enum": ["todo", "in_progress", "completed", "blocked", None],
+                    },
                 },
                 "required": ["status"],
                 "additionalProperties": False,
@@ -96,18 +101,31 @@ def run_learning_agent(
             try:
                 arguments = json.loads(tool_call.function.arguments or "{}")
                 handler = handlers.get(name)
-                result = handler(arguments) if handler else {"error": "허용되지 않은 도구입니다."}
+                result = (
+                    handler(arguments)
+                    if handler
+                    else {"error": "허용되지 않은 도구입니다."}
+                )
             except (json.JSONDecodeError, TypeError, ValueError) as exc:
-                result = {"error": "도구 입력을 확인할 수 없습니다.", "detail": str(exc)[:200]}
+                result = {
+                    "error": "도구 입력을 확인할 수 없습니다.",
+                    "detail": str(exc)[:200],
+                }
             content = json.dumps(result, ensure_ascii=False)
-            messages.append({
-                "role": "tool", "tool_call_id": tool_call.id,
-                "content": content[:6000],
-            })
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": content[:6000],
+                }
+            )
         for tool_call in tool_calls[3:]:
-            messages.append({
-                "role": "tool", "tool_call_id": tool_call.id,
-                "content": "도구 호출 한도를 초과했습니다.",
-            })
+            messages.append(
+                {
+                    "role": "tool",
+                    "tool_call_id": tool_call.id,
+                    "content": "도구 호출 한도를 초과했습니다.",
+                }
+            )
 
     raise ValueError("AI agent exceeded the tool-call limit")

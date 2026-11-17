@@ -1,14 +1,14 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import logging
 import os
 import re
 import secrets
-import sqlite3
 import smtplib
-import base64
+import sqlite3
 import ssl
 from contextlib import contextmanager
 from copy import deepcopy
@@ -19,21 +19,20 @@ from typing import Any, Iterator, Literal
 from urllib.parse import quote, urlsplit
 from uuid import uuid4
 
-import psycopg
 import httpx
+import psycopg
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from openai import OpenAIError
+from psycopg.rows import dict_row
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
 from backend.agent import run_learning_agent
 from backend.ai_client import configured_model, create_ai_client
 from backend.knowledge import search_knowledge
 from backend.planning import generate_plan_content
-from psycopg.rows import dict_row
-
 
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend"
@@ -60,77 +59,246 @@ def _question(
     answer: str,
     explanation: str,
 ) -> None:
-    QUESTIONS.append({
-        "id": f"q{len(QUESTIONS) + 1:02d}",
-        "category": category,
-        "type": "objective",
-        "prompt": prompt,
-        "code": code,
-        "options": [{"id": str(i), "text": text} for i, text in enumerate(options)],
-        "answer": answer,
-        "explanation": explanation,
-    })
+    QUESTIONS.append(
+        {
+            "id": f"q{len(QUESTIONS) + 1:02d}",
+            "category": category,
+            "type": "objective",
+            "prompt": prompt,
+            "code": code,
+            "options": [{"id": str(i), "text": text} for i, text in enumerate(options)],
+            "answer": answer,
+            "explanation": explanation,
+        }
+    )
 
 
 QUESTIONS: list[dict[str, Any]] = []
 for item in [
-    ("다음 Python 코드의 실행 결과는 무엇인가요?", "numbers = [1, 2, 3]\nprint(len(numbers))", ["1", "2", "3", "오류 발생"], "2", "len()은 리스트 항목 수를 반환하므로 결과는 3입니다."),
-    ("조건을 만족할 때 실행되는 Python 키워드는 무엇인가요?", "score = 85\n# 80 이상일 때 출력", ["for", "if", "def", "import"], "1", "조건 분기에는 if 키워드를 사용합니다."),
-    ("다음 코드에서 출력되는 값은 무엇인가요?", "total = 0\nfor n in range(1, 4):\n    total += n\nprint(total)", ["3", "5", "6", "10"], "2", "1부터 3까지 더한 결과는 6입니다."),
-    ("함수에서 결과를 호출한 곳으로 돌려주는 키워드는 무엇인가요?", "def add(a, b):\n    # 결과 반환", ["print", "yield", "return", "break"], "2", "return 문이 함수의 결과를 반환합니다."),
-    ("문자열을 정수로 변환하는 올바른 표현은 무엇인가요?", 'value = "42"', ["str(value)", "int(value)", "float[int]", "value.parse()"], "1", "int(value)는 숫자 문자열을 정수로 변환합니다."),
+    (
+        "다음 Python 코드의 실행 결과는 무엇인가요?",
+        "numbers = [1, 2, 3]\nprint(len(numbers))",
+        ["1", "2", "3", "오류 발생"],
+        "2",
+        "len()은 리스트 항목 수를 반환하므로 결과는 3입니다.",
+    ),
+    (
+        "조건을 만족할 때 실행되는 Python 키워드는 무엇인가요?",
+        "score = 85\n# 80 이상일 때 출력",
+        ["for", "if", "def", "import"],
+        "1",
+        "조건 분기에는 if 키워드를 사용합니다.",
+    ),
+    (
+        "다음 코드에서 출력되는 값은 무엇인가요?",
+        "total = 0\nfor n in range(1, 4):\n    total += n\nprint(total)",
+        ["3", "5", "6", "10"],
+        "2",
+        "1부터 3까지 더한 결과는 6입니다.",
+    ),
+    (
+        "함수에서 결과를 호출한 곳으로 돌려주는 키워드는 무엇인가요?",
+        "def add(a, b):\n    # 결과 반환",
+        ["print", "yield", "return", "break"],
+        "2",
+        "return 문이 함수의 결과를 반환합니다.",
+    ),
+    (
+        "문자열을 정수로 변환하는 올바른 표현은 무엇인가요?",
+        'value = "42"',
+        ["str(value)", "int(value)", "float[int]", "value.parse()"],
+        "1",
+        "int(value)는 숫자 문자열을 정수로 변환합니다.",
+    ),
 ]:
     _question(SKILLS[0], *item)
 
 for item in [
-    ("HTTP GET 요청의 일반적인 목적은 무엇인가요?", "GET /api/users/1", ["데이터 조회", "새 리소스 생성", "기존 데이터 삭제", "서버 종료"], "0", "GET은 일반적으로 리소스 조회에 사용합니다."),
-    ("JSON 객체를 Python 딕셔너리로 변환할 때 사용하는 함수는 무엇인가요?", 'payload = \'{"ok": true}\'', ["json.dumps(payload)", "json.loads(payload)", "dict.json(payload)", "JSON.parse(payload)"], "1", "json.loads()는 JSON 문자열을 Python 객체로 변환합니다."),
-    ("HTTP 상태 코드 404는 무엇을 의미하나요?", "response.status_code == 404", ["요청 성공", "인증 필요", "리소스를 찾을 수 없음", "서버 내부 오류"], "2", "404는 요청한 리소스를 찾을 수 없음을 의미합니다."),
-    ("API 응답에서 JSON 본문을 읽는 requests의 올바른 사용법은 무엇인가요?", "response = requests.get(url)", ["response.json()", "response.body.json()", "json.read(response)", "response.decode_json"], "0", "requests 응답의 JSON 본문은 response.json()으로 읽습니다."),
-    ("POST 요청에 JSON 데이터를 전달하는 requests 옵션은 무엇인가요?", "requests.post(url, ...)", ["params=data", "json=data", "headers=data", "status=data"], "1", "json 인수는 요청 본문을 JSON으로 직렬화합니다."),
+    (
+        "HTTP GET 요청의 일반적인 목적은 무엇인가요?",
+        "GET /api/users/1",
+        ["데이터 조회", "새 리소스 생성", "기존 데이터 삭제", "서버 종료"],
+        "0",
+        "GET은 일반적으로 리소스 조회에 사용합니다.",
+    ),
+    (
+        "JSON 객체를 Python 딕셔너리로 변환할 때 사용하는 함수는 무엇인가요?",
+        "payload = '{\"ok\": true}'",
+        [
+            "json.dumps(payload)",
+            "json.loads(payload)",
+            "dict.json(payload)",
+            "JSON.parse(payload)",
+        ],
+        "1",
+        "json.loads()는 JSON 문자열을 Python 객체로 변환합니다.",
+    ),
+    (
+        "HTTP 상태 코드 404는 무엇을 의미하나요?",
+        "response.status_code == 404",
+        ["요청 성공", "인증 필요", "리소스를 찾을 수 없음", "서버 내부 오류"],
+        "2",
+        "404는 요청한 리소스를 찾을 수 없음을 의미합니다.",
+    ),
+    (
+        "API 응답에서 JSON 본문을 읽는 requests의 올바른 사용법은 무엇인가요?",
+        "response = requests.get(url)",
+        [
+            "response.json()",
+            "response.body.json()",
+            "json.read(response)",
+            "response.decode_json",
+        ],
+        "0",
+        "requests 응답의 JSON 본문은 response.json()으로 읽습니다.",
+    ),
+    (
+        "POST 요청에 JSON 데이터를 전달하는 requests 옵션은 무엇인가요?",
+        "requests.post(url, ...)",
+        ["params=data", "json=data", "headers=data", "status=data"],
+        "1",
+        "json 인수는 요청 본문을 JSON으로 직렬화합니다.",
+    ),
 ]:
     _question(SKILLS[1], *item)
 
 for item in [
-    ("Git에서 현재 변경 사항을 스테이징 영역에 추가하는 명령은 무엇인가요?", "변경 파일을 다음 커밋에 포함하기", ["git push", "git add", "git pull", "git init"], "1", "git add는 변경 내용을 스테이징 영역에 추가합니다."),
-    ("새 브랜치를 만들고 이동하는 명령은 무엇인가요?", "기능 개발용 브랜치 생성", ["git branch -d feature", "git switch -c feature", "git merge feature", "git status feature"], "1", "git switch -c는 새 브랜치를 생성하고 해당 브랜치로 전환합니다."),
-    ("원격 저장소의 변경 내용을 가져와 현재 브랜치에 통합하는 명령은 무엇인가요?", "origin의 main 변경 반영", ["git pull", "git log", "git diff", "git init"], "0", "git pull은 원격 변경을 가져와 현재 브랜치에 통합합니다."),
-    ("Pull Request의 주된 목적은 무엇인가요?", "작업 브랜치 변경 사항을 공유", ["코드를 검토하고 다른 브랜치에 병합 요청", "로컬 파일 삭제", "저장소 복제", "커밋 메시지 수정"], "0", "Pull Request는 변경 사항을 검토하고 병합하기 위한 협업 절차입니다."),
-    ("마지막 커밋을 포함해 작업 상태를 확인하는 명령은 무엇인가요?", "현재 브랜치와 변경 파일 확인", ["git status", "git clone", "git reset", "git remote"], "0", "git status는 브랜치와 작업 트리 상태를 보여줍니다."),
+    (
+        "Git에서 현재 변경 사항을 스테이징 영역에 추가하는 명령은 무엇인가요?",
+        "변경 파일을 다음 커밋에 포함하기",
+        ["git push", "git add", "git pull", "git init"],
+        "1",
+        "git add는 변경 내용을 스테이징 영역에 추가합니다.",
+    ),
+    (
+        "새 브랜치를 만들고 이동하는 명령은 무엇인가요?",
+        "기능 개발용 브랜치 생성",
+        [
+            "git branch -d feature",
+            "git switch -c feature",
+            "git merge feature",
+            "git status feature",
+        ],
+        "1",
+        "git switch -c는 새 브랜치를 생성하고 해당 브랜치로 전환합니다.",
+    ),
+    (
+        "원격 저장소의 변경 내용을 가져와 현재 브랜치에 통합하는 명령은 무엇인가요?",
+        "origin의 main 변경 반영",
+        ["git pull", "git log", "git diff", "git init"],
+        "0",
+        "git pull은 원격 변경을 가져와 현재 브랜치에 통합합니다.",
+    ),
+    (
+        "Pull Request의 주된 목적은 무엇인가요?",
+        "작업 브랜치 변경 사항을 공유",
+        [
+            "코드를 검토하고 다른 브랜치에 병합 요청",
+            "로컬 파일 삭제",
+            "저장소 복제",
+            "커밋 메시지 수정",
+        ],
+        "0",
+        "Pull Request는 변경 사항을 검토하고 병합하기 위한 협업 절차입니다.",
+    ),
+    (
+        "마지막 커밋을 포함해 작업 상태를 확인하는 명령은 무엇인가요?",
+        "현재 브랜치와 변경 파일 확인",
+        ["git status", "git clone", "git reset", "git remote"],
+        "0",
+        "git status는 브랜치와 작업 트리 상태를 보여줍니다.",
+    ),
 ]:
     _question(SKILLS[2], *item)
 
 for item in [
-    ("LLM 프롬프트에서 역할과 출력 형식을 명확하게 지정하는 이유는 무엇인가요?", "요구사항과 응답 형식을 구체적으로 전달", ["모델의 응답 방향과 일관성을 높이기 위해", "모델 파라미터를 자동 변경하기 위해", "인터넷 연결을 끊기 위해", "사용자 인증을 대신하기 위해"], "0", "명확한 지시와 형식 제약은 응답의 관련성과 일관성을 높입니다."),
-    ("LLM API 키를 저장하기에 가장 적절한 곳은 어디인가요?", "서버 애플리케이션 설정", ["공개 저장소의 프런트엔드 코드", "서버 환경 변수 또는 비밀 저장소", "URL 쿼리 문자열", "HTML 주석"], "1", "비밀 키는 서버 환경 변수나 비밀 관리 도구에 저장해야 합니다."),
-    ("AI Agent에서 Tool Calling의 목적은 무엇인가요?", "모델이 정의된 기능을 구조화된 인수로 요청", ["모델을 로컬 파일 전체에 무제한 접근시키기", "응답을 무조건 사실로 확정하기", "토큰을 암호화하기", "사용자 비밀번호를 생성하기"], "0", "도구 호출은 모델이 허용된 기능을 명시적 인수로 요청하도록 합니다."),
-    ("RAG가 답변 생성 전에 검색하는 데이터는 보통 무엇인가요?", "질문과 관련된 문서 조각", ["무작위 이미지 픽셀", "사용자의 비밀번호", "컴파일된 실행 파일", "네트워크 포트 목록"], "0", "RAG는 검색된 관련 문맥을 생성 모델의 입력에 제공합니다."),
-    ("LLM 출력의 신뢰성을 높이는 적절한 방법은 무엇인가요?", "구조화된 출력 검증 및 근거 확인", ["응답을 검증 없이 자동 실행", "모델에게 보안 규칙을 무시하라고 지시", "모든 예외를 숨김", "API 키를 사용자에게 표시"], "0", "구조 검증과 사실·근거 확인은 생성 결과의 신뢰성을 높입니다."),
+    (
+        "LLM 프롬프트에서 역할과 출력 형식을 명확하게 지정하는 이유는 무엇인가요?",
+        "요구사항과 응답 형식을 구체적으로 전달",
+        [
+            "모델의 응답 방향과 일관성을 높이기 위해",
+            "모델 파라미터를 자동 변경하기 위해",
+            "인터넷 연결을 끊기 위해",
+            "사용자 인증을 대신하기 위해",
+        ],
+        "0",
+        "명확한 지시와 형식 제약은 응답의 관련성과 일관성을 높입니다.",
+    ),
+    (
+        "LLM API 키를 저장하기에 가장 적절한 곳은 어디인가요?",
+        "서버 애플리케이션 설정",
+        [
+            "공개 저장소의 프런트엔드 코드",
+            "서버 환경 변수 또는 비밀 저장소",
+            "URL 쿼리 문자열",
+            "HTML 주석",
+        ],
+        "1",
+        "비밀 키는 서버 환경 변수나 비밀 관리 도구에 저장해야 합니다.",
+    ),
+    (
+        "AI Agent에서 Tool Calling의 목적은 무엇인가요?",
+        "모델이 정의된 기능을 구조화된 인수로 요청",
+        [
+            "모델을 로컬 파일 전체에 무제한 접근시키기",
+            "응답을 무조건 사실로 확정하기",
+            "토큰을 암호화하기",
+            "사용자 비밀번호를 생성하기",
+        ],
+        "0",
+        "도구 호출은 모델이 허용된 기능을 명시적 인수로 요청하도록 합니다.",
+    ),
+    (
+        "RAG가 답변 생성 전에 검색하는 데이터는 보통 무엇인가요?",
+        "질문과 관련된 문서 조각",
+        [
+            "무작위 이미지 픽셀",
+            "사용자의 비밀번호",
+            "컴파일된 실행 파일",
+            "네트워크 포트 목록",
+        ],
+        "0",
+        "RAG는 검색된 관련 문맥을 생성 모델의 입력에 제공합니다.",
+    ),
+    (
+        "LLM 출력의 신뢰성을 높이는 적절한 방법은 무엇인가요?",
+        "구조화된 출력 검증 및 근거 확인",
+        [
+            "응답을 검증 없이 자동 실행",
+            "모델에게 보안 규칙을 무시하라고 지시",
+            "모든 예외를 숨김",
+            "API 키를 사용자에게 표시",
+        ],
+        "0",
+        "구조 검증과 사실·근거 확인은 생성 결과의 신뢰성을 높입니다.",
+    ),
 ]:
     _question(SKILLS[3], *item)
 
-QUESTIONS.extend([
-    {
-        "id": "q21",
-        "category": SKILLS[4],
-        "type": "written",
-        "prompt": "외부 API 요청 코드에서 오류가 발생할 수 있는 상황과, 이를 안전하게 처리하는 방법을 설명해 주세요.",
-        "code": "response = requests.get(url)\nreturn response.json()",
-        "options": [],
-        "answer": None,
-        "explanation": "네트워크 예외와 비정상 HTTP 응답을 확인하고, 적절한 오류를 반환하는지 평가합니다.",
-    },
-    {
-        "id": "q22",
-        "category": SKILLS[4],
-        "type": "written",
-        "prompt": "다음 코드가 빈 목록을 받았을 때 생길 수 있는 문제와 개선 방법을 설명해 주세요.",
-        "code": "def first_item(items):\n    return items[0]",
-        "options": [],
-        "answer": None,
-        "explanation": "빈 목록 접근 문제를 파악하고, 입력 검증이나 명시적인 예외 처리를 제안하는지 평가합니다.",
-    },
-])
+QUESTIONS.extend(
+    [
+        {
+            "id": "q21",
+            "category": SKILLS[4],
+            "type": "written",
+            "prompt": "외부 API 요청 코드에서 오류가 발생할 수 있는 상황과, 이를 안전하게 처리하는 방법을 설명해 주세요.",
+            "code": "response = requests.get(url)\nreturn response.json()",
+            "options": [],
+            "answer": None,
+            "explanation": "네트워크 예외와 비정상 HTTP 응답을 확인하고, 적절한 오류를 반환하는지 평가합니다.",
+        },
+        {
+            "id": "q22",
+            "category": SKILLS[4],
+            "type": "written",
+            "prompt": "다음 코드가 빈 목록을 받았을 때 생길 수 있는 문제와 개선 방법을 설명해 주세요.",
+            "code": "def first_item(items):\n    return items[0]",
+            "options": [],
+            "answer": None,
+            "explanation": "빈 목록 접근 문제를 파악하고, 입력 검증이나 명시적인 예외 처리를 제안하는지 평가합니다.",
+        },
+    ]
+)
 
 
 class PostgresConnection:
@@ -213,7 +381,9 @@ class ProfileInput(BaseModel):
     @classmethod
     def valid_github(cls, value: str) -> str:
         value = value.strip()
-        if value and not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?", value):
+        if value and not re.fullmatch(
+            r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?", value
+        ):
             raise ValueError("GitHub 사용자명 형식을 확인해 주세요.")
         return value
 
@@ -291,7 +461,10 @@ class TaskSubmissionInput(BaseModel):
         if value is None or not value.strip():
             return None
         parsed = urlsplit(value.strip())
-        if parsed.scheme != "https" or parsed.hostname not in {"github.com", "www.github.com"}:
+        if parsed.scheme != "https" or parsed.hostname not in {
+            "github.com",
+            "www.github.com",
+        }:
             raise ValueError("HTTPS GitHub 저장소 URL을 입력해 주세요.")
         if not parsed.path.strip("/"):
             raise ValueError("저장소 경로가 포함된 GitHub URL을 입력해 주세요.")
@@ -358,8 +531,12 @@ class GitHubAnalysisInput(BaseModel):
         ):
             raise ValueError("HTTPS GitHub 저장소 주소를 입력해 주세요.")
         parts = [part for part in parsed.path.strip("/").split("/") if part]
-        if len(parts) != 2 or not all(re.fullmatch(r"[A-Za-z0-9_.-]+", part) for part in parts):
-            raise ValueError("github.com/{owner}/{repository} 형식의 주소를 입력해 주세요.")
+        if len(parts) != 2 or not all(
+            re.fullmatch(r"[A-Za-z0-9_.-]+", part) for part in parts
+        ):
+            raise ValueError(
+                "github.com/{owner}/{repository} 형식의 주소를 입력해 주세요."
+            )
         if parts[1].endswith(".git"):
             parts[1] = parts[1][:-4]
         if not parts[1]:
@@ -389,7 +566,9 @@ class GitHubProjectReview(BaseModel):
     implemented_features: list[str] = Field(max_length=8)
     strengths: list[str] = Field(max_length=8)
     findings: list[GitHubFinding] = Field(max_length=8)
-    task_verification: Literal["fulfilled", "partially_fulfilled", "needs_review", "cannot_assess"]
+    task_verification: Literal[
+        "fulfilled", "partially_fulfilled", "needs_review", "cannot_assess"
+    ]
     task_feedback: str = Field(max_length=500)
 
 
@@ -410,19 +589,35 @@ def _github_get(client: httpx.Client, path: str, **kwargs: Any) -> Any:
     try:
         response = client.get(f"https://api.github.com{path}", **kwargs)
     except httpx.HTTPError as exc:
-        raise HTTPException(status_code=502, detail="GitHub API에 연결하지 못했습니다.") from exc
+        raise HTTPException(
+            status_code=502, detail="GitHub API에 연결하지 못했습니다."
+        ) from exc
     if response.status_code == 404:
-        raise HTTPException(status_code=404, detail="저장소, Branch 또는 파일을 찾을 수 없습니다.")
-    if response.status_code == 403 and response.headers.get("X-RateLimit-Remaining") == "0":
-        raise HTTPException(status_code=429, detail="GitHub API 호출 한도에 도달했습니다. 잠시 후 다시 시도해 주세요.")
+        raise HTTPException(
+            status_code=404, detail="저장소, Branch 또는 파일을 찾을 수 없습니다."
+        )
+    if (
+        response.status_code == 403
+        and response.headers.get("X-RateLimit-Remaining") == "0"
+    ):
+        raise HTTPException(
+            status_code=429,
+            detail="GitHub API 호출 한도에 도달했습니다. 잠시 후 다시 시도해 주세요.",
+        )
     if response.status_code == 403:
-        raise HTTPException(status_code=403, detail="공개 저장소 접근이 거부되었습니다.")
+        raise HTTPException(
+            status_code=403, detail="공개 저장소 접근이 거부되었습니다."
+        )
     if response.status_code >= 400:
-        raise HTTPException(status_code=502, detail="GitHub API 응답을 처리하지 못했습니다.")
+        raise HTTPException(
+            status_code=502, detail="GitHub API 응답을 처리하지 못했습니다."
+        )
     try:
         return response.json()
     except ValueError as exc:
-        raise HTTPException(status_code=502, detail="GitHub API 응답 형식이 올바르지 않습니다.") from exc
+        raise HTTPException(
+            status_code=502, detail="GitHub API 응답 형식이 올바르지 않습니다."
+        ) from exc
 
 
 def _readme_score(readme: str) -> dict[str, Any]:
@@ -436,10 +631,17 @@ def _readme_score(readme: str) -> dict[str, Any]:
         ("테스트·제약사항", 10, r"테스트|test|제약|limitations"),
     ]
     results = [
-        {"name": label, "points": weight, "met": bool(re.search(pattern, readme, re.IGNORECASE))}
+        {
+            "name": label,
+            "points": weight,
+            "met": bool(re.search(pattern, readme, re.IGNORECASE)),
+        }
         for label, weight, pattern in sections
     ]
-    return {"score": sum(item["points"] for item in results if item["met"]), "sections": results}
+    return {
+        "score": sum(item["points"] for item in results if item["met"]),
+        "sections": results,
+    }
 
 
 def _detect_tech_stack(paths: list[str], readme: str) -> list[str]:
@@ -448,15 +650,37 @@ def _detect_tech_stack(paths: list[str], readme: str) -> list[str]:
     detected: list[str] = []
     checks = [
         ("Python", lambda: any(path.endswith(".py") for path in paths)),
-        ("JavaScript", lambda: any(path.endswith((".js", ".jsx", ".mjs")) for path in paths)),
+        (
+            "JavaScript",
+            lambda: any(path.endswith((".js", ".jsx", ".mjs")) for path in paths),
+        ),
         ("TypeScript", lambda: any(path.endswith((".ts", ".tsx")) for path in paths)),
-        ("React", lambda: "react" in path_set or any(path.endswith(".jsx") for path in paths) or "react" in text),
-        ("FastAPI", lambda: "fastapi" in text or any("fastapi" in path.lower() for path in paths)),
+        (
+            "React",
+            lambda: "react" in path_set
+            or any(path.endswith(".jsx") for path in paths)
+            or "react" in text,
+        ),
+        (
+            "FastAPI",
+            lambda: "fastapi" in text
+            or any("fastapi" in path.lower() for path in paths),
+        ),
         ("Django", lambda: "django" in text or "manage.py" in path_set),
         ("Node.js", lambda: "package.json" in path_set),
-        ("PostgreSQL", lambda: any("postgres" in path.lower() for path in paths) or "postgres" in text),
-        ("SQLite", lambda: "sqlite" in text or any("sqlite" in path.lower() for path in paths)),
-        ("Docker", lambda: "dockerfile" in {path.lower().split("/")[-1] for path in paths}),
+        (
+            "PostgreSQL",
+            lambda: any("postgres" in path.lower() for path in paths)
+            or "postgres" in text,
+        ),
+        (
+            "SQLite",
+            lambda: "sqlite" in text or any("sqlite" in path.lower() for path in paths),
+        ),
+        (
+            "Docker",
+            lambda: "dockerfile" in {path.lower().split("/")[-1] for path in paths},
+        ),
     ]
     for label, predicate in checks:
         if predicate():
@@ -472,46 +696,64 @@ def _project_review(
     task_criteria: str,
 ) -> tuple[dict[str, Any], str]:
     readme_score = _readme_score(readme)
-    has_tests = any(re.search(r"(^|/)(tests?|spec)(/|\.)", path, re.IGNORECASE) for path in paths)
+    has_tests = any(
+        re.search(r"(^|/)(tests?|spec)(/|\.)", path, re.IGNORECASE) for path in paths
+    )
     findings: list[dict[str, Any]] = []
-    missing_docs = [item["name"] for item in readme_score["sections"] if not item["met"]]
+    missing_docs = [
+        item["name"] for item in readme_score["sections"] if not item["met"]
+    ]
     if missing_docs:
-        findings.append({
-            "category": "documentation", "severity": "medium",
-            "description": f"README에서 다음 항목을 확인하지 못했습니다: {', '.join(missing_docs[:3])}.",
-            "recommendation": "프로젝트 소개, 실행 절차, 테스트 방법을 README에 보완하세요.",
-            "evidence_files": ["README.md"] if readme else [],
-        })
+        findings.append(
+            {
+                "category": "documentation",
+                "severity": "medium",
+                "description": f"README에서 다음 항목을 확인하지 못했습니다: {', '.join(missing_docs[:3])}.",
+                "recommendation": "프로젝트 소개, 실행 절차, 테스트 방법을 README에 보완하세요.",
+                "evidence_files": ["README.md"] if readme else [],
+            }
+        )
     if not has_tests:
-        findings.append({
-            "category": "testing", "severity": "medium",
-            "description": "파일 목록에서 테스트 디렉터리나 테스트 파일을 확인하지 못했습니다.",
-            "recommendation": "핵심 동작을 검증하는 테스트를 추가하세요. 파일명 규칙이 다르면 테스트 위치를 확인해 주세요.",
-            "evidence_files": [],
-        })
+        findings.append(
+            {
+                "category": "testing",
+                "severity": "medium",
+                "description": "파일 목록에서 테스트 디렉터리나 테스트 파일을 확인하지 못했습니다.",
+                "recommendation": "핵심 동작을 검증하는 테스트를 추가하세요. 파일명 규칙이 다르면 테스트 위치를 확인해 주세요.",
+                "evidence_files": [],
+            }
+        )
     deterministic = GitHubProjectReview(
         summary=f"{repository.get('full_name', '저장소')}에서 {len(paths)}개 파일과 최근 커밋을 확인했습니다.",
         implemented_features=[],
-        strengths=["저장소 파일 구조와 공개 메타데이터를 확인했습니다."] + (["README가 등록되어 있습니다."] if readme else []),
+        strengths=["저장소 파일 구조와 공개 메타데이터를 확인했습니다."]
+        + (["README가 등록되어 있습니다."] if readme else []),
         findings=findings,
         task_verification="needs_review" if task_criteria else "cannot_assess",
-        task_feedback="정적 파일 증거만으로 과제 동작을 확정할 수 없습니다." if task_criteria else "연결된 학습과제가 없습니다.",
+        task_feedback=(
+            "정적 파일 증거만으로 과제 동작을 확정할 수 없습니다."
+            if task_criteria
+            else "연결된 학습과제가 없습니다."
+        ),
     ).model_dump()
 
     client = create_ai_client()
     if not client:
         return deterministic, "rules"
 
-    review_input = json.dumps({
-        "repository": {
-            "name": repository.get("full_name"),
-            "description": repository.get("description"),
-            "file_paths": paths[:300],
+    review_input = json.dumps(
+        {
+            "repository": {
+                "name": repository.get("full_name"),
+                "description": repository.get("description"),
+                "file_paths": paths[:300],
+            },
+            "readme": readme[:12000],
+            "selected_source_files": source_files,
+            "task_criteria": task_criteria,
         },
-        "readme": readme[:12000],
-        "selected_source_files": source_files,
-        "task_criteria": task_criteria,
-    }, ensure_ascii=False)
+        ensure_ascii=False,
+    )
     try:
         completion = client.chat.completions.create(
             model=configured_model(),
@@ -543,14 +785,21 @@ def _project_review(
         review = GitHubProjectReview.model_validate_json(content).model_dump()
     except OpenAIError as exc:
         logger.exception("OpenAI GitHub project analysis request failed")
-        raise HTTPException(status_code=502, detail="AI 프로젝트 분석에 실패했습니다. 잠시 후 다시 시도해 주세요.") from exc
+        raise HTTPException(
+            status_code=502,
+            detail="AI 프로젝트 분석에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+        ) from exc
     except (IndexError, AttributeError, TypeError, ValueError, ValidationError) as exc:
         logger.exception("OpenAI returned an invalid GitHub analysis result")
-        raise HTTPException(status_code=502, detail="AI 분석 결과를 검증하지 못했습니다.") from exc
+        raise HTTPException(
+            status_code=502, detail="AI 분석 결과를 검증하지 못했습니다."
+        ) from exc
 
     valid_paths = set(paths) | ({"README.md"} if readme else set())
     for finding in review["findings"]:
-        finding["evidence_files"] = [path for path in finding["evidence_files"] if path in valid_paths]
+        finding["evidence_files"] = [
+            path for path in finding["evidence_files"] if path in valid_paths
+        ]
     return review, "openai"
 
 
@@ -654,7 +903,9 @@ def _level_for_score(score: int) -> str:
     return "심화"
 
 
-def _grade_written_with_openai(question: dict[str, Any], answer: str) -> tuple[int, list[str]]:
+def _grade_written_with_openai(
+    question: dict[str, Any], answer: str
+) -> tuple[int, list[str]]:
     if not answer.strip():
         return 0, ["답변이 없어 점수를 부여하지 않았습니다."]
 
@@ -755,7 +1006,12 @@ def _assessment_result(answers: dict[str, str]) -> dict[str, Any]:
             feedback = (
                 ["정답입니다. " + question["explanation"]]
                 if score
-                else ["정답: " + question["options"][int(question["answer"])]["text"] + ". " + question["explanation"]]
+                else [
+                    "정답: "
+                    + question["options"][int(question["answer"])]["text"]
+                    + ". "
+                    + question["explanation"]
+                ]
             )
             possible = 4
         else:
@@ -766,11 +1022,21 @@ def _assessment_result(answers: dict[str, str]) -> dict[str, Any]:
         bucket["possible"] += possible
         total_score += score
         graded_answers.append(
-            {"question_id": question["id"], "answer": answer, "score": score, "max_score": possible, "feedback": feedback}
+            {
+                "question_id": question["id"],
+                "answer": answer,
+                "score": score,
+                "max_score": possible,
+                "feedback": feedback,
+            }
         )
 
     scores = {
-        skill: round(values["earned"] * 100 / values["possible"]) if values["possible"] else 0
+        skill: (
+            round(values["earned"] * 100 / values["possible"])
+            if values["possible"]
+            else 0
+        )
         for skill, values in category_scores.items()
     }
     weakest = min(scores, key=scores.get)
@@ -781,7 +1047,8 @@ def _assessment_result(answers: dict[str, str]) -> dict[str, Any]:
         "level": level,
         "skill_scores": scores,
         "strengths": [strongest] if scores[strongest] > 0 else [],
-        "focus_areas": [skill for skill, score in scores.items() if score < 60] or [weakest],
+        "focus_areas": [skill for skill, score in scores.items() if score < 60]
+        or [weakest],
         "feedback": f"종합 {total_score}점으로 {level} 단계입니다. {weakest} 영역을 우선 보완하고, {strongest} 강점은 실습 프로젝트에 활용해 보세요.",
         "answers": graded_answers,
         "grading_method": "객관식 정답 비교 및 OpenAI 루브릭 기반 서술형 의미 평가",
@@ -790,25 +1057,55 @@ def _assessment_result(answers: dict[str, str]) -> dict[str, Any]:
 
 
 TASK_CATALOG = {
-    SKILLS[0]: ("Python 기초 문법", "작은 Python 자동화 도구", "입력·반복·함수 동작을 테스트로 확인"),
-    SKILLS[1]: ("API와 JSON 데이터 처리", "외부 API를 사용하는 데이터 앱", "정상 응답과 오류 응답을 구분해 처리"),
-    SKILLS[2]: ("Git 브랜치와 협업 흐름", "기능 브랜치와 Pull Request", "브랜치·커밋·PR 이력을 저장소에서 확인"),
-    SKILLS[3]: ("LLM API와 안전한 프롬프트", "구조화된 AI 응답 기능", "응답 스키마를 검증하고 실패 상황을 처리"),
-    SKILLS[4]: ("코드 읽기와 오류 분석", "오류 재현 및 수정 기록", "원인·수정·검증 결과를 README에 기록"),
+    SKILLS[0]: (
+        "Python 기초 문법",
+        "작은 Python 자동화 도구",
+        "입력·반복·함수 동작을 테스트로 확인",
+    ),
+    SKILLS[1]: (
+        "API와 JSON 데이터 처리",
+        "외부 API를 사용하는 데이터 앱",
+        "정상 응답과 오류 응답을 구분해 처리",
+    ),
+    SKILLS[2]: (
+        "Git 브랜치와 협업 흐름",
+        "기능 브랜치와 Pull Request",
+        "브랜치·커밋·PR 이력을 저장소에서 확인",
+    ),
+    SKILLS[3]: (
+        "LLM API와 안전한 프롬프트",
+        "구조화된 AI 응답 기능",
+        "응답 스키마를 검증하고 실패 상황을 처리",
+    ),
+    SKILLS[4]: (
+        "코드 읽기와 오류 분석",
+        "오류 재현 및 수정 기록",
+        "원인·수정·검증 결과를 README에 기록",
+    ),
 }
 
 
-def _build_plan(data: PlanGenerateInput, profile: dict[str, Any], result: dict[str, Any]) -> dict[str, Any]:
+def _build_plan(
+    data: PlanGenerateInput, profile: dict[str, Any], result: dict[str, Any]
+) -> dict[str, Any]:
     focus = list(dict.fromkeys(data.focus_skills))
     focus = [skill for skill in focus if skill in SKILLS]
     if not focus:
-        focus = [skill for skill, _ in sorted(result["skill_scores"].items(), key=lambda pair: pair[1])[:2]]
+        focus = [
+            skill
+            for skill, _ in sorted(
+                result["skill_scores"].items(), key=lambda pair: pair[1]
+            )[:2]
+        ]
     if not focus:
         focus = profile["interest_skills"][:2] or [SKILLS[0], SKILLS[1]]
     if len(focus) == 1:
         focus.append(next(skill for skill in SKILLS if skill not in focus))
 
-    hours_per_task = [data.weekly_hours // 2, data.weekly_hours - data.weekly_hours // 2]
+    hours_per_task = [
+        data.weekly_hours // 2,
+        data.weekly_hours - data.weekly_hours // 2,
+    ]
     weeks = []
     style_prefix = {
         "project": "프로젝트 실습",
@@ -825,34 +1122,38 @@ def _build_plan(data: PlanGenerateInput, profile: dict[str, Any], result: dict[s
         next_skill = focus[week_no % len(focus)]
         title, deliverable, criteria = TASK_CATALOG[skill]
         next_title, next_deliverable, next_criteria = TASK_CATALOG[next_skill]
-        weeks.append({
-            "week_no": week_no,
-            "weekly_goal": f"{skill} 역량을 활용해 {data.goal}의 {week_no}주차 목표 달성",
-            "tasks": [
-                {
-                    "id": f"w{week_no}-t1",
-                    "title": f"{style_prefix}: {title}",
-                    "task_type": data.learning_style,
-                    "estimated_hours": hours_per_task[0],
-                    "learning_resources": [f"{skill} 공식 문서와 단계별 예제"],
-                    "deliverable": deliverable,
-                    "completion_criteria": criteria,
-                    "priority": "high" if skill in focus[:2] else "medium",
-                    "prerequisite_task_ids": [] if week_no == 1 else [f"w{week_no - 1}-t2"],
-                },
-                {
-                    "id": f"w{week_no}-t2",
-                    "title": f"{difficulty_label}: {next_title} 적용",
-                    "task_type": "practice",
-                    "estimated_hours": hours_per_task[1],
-                    "learning_resources": [f"실습 가이드: {next_skill}"],
-                    "deliverable": next_deliverable,
-                    "completion_criteria": next_criteria,
-                    "priority": "medium",
-                    "prerequisite_task_ids": [f"w{week_no}-t1"],
-                },
-            ],
-        })
+        weeks.append(
+            {
+                "week_no": week_no,
+                "weekly_goal": f"{skill} 역량을 활용해 {data.goal}의 {week_no}주차 목표 달성",
+                "tasks": [
+                    {
+                        "id": f"w{week_no}-t1",
+                        "title": f"{style_prefix}: {title}",
+                        "task_type": data.learning_style,
+                        "estimated_hours": hours_per_task[0],
+                        "learning_resources": [f"{skill} 공식 문서와 단계별 예제"],
+                        "deliverable": deliverable,
+                        "completion_criteria": criteria,
+                        "priority": "high" if skill in focus[:2] else "medium",
+                        "prerequisite_task_ids": (
+                            [] if week_no == 1 else [f"w{week_no - 1}-t2"]
+                        ),
+                    },
+                    {
+                        "id": f"w{week_no}-t2",
+                        "title": f"{difficulty_label}: {next_title} 적용",
+                        "task_type": "practice",
+                        "estimated_hours": hours_per_task[1],
+                        "learning_resources": [f"실습 가이드: {next_skill}"],
+                        "deliverable": next_deliverable,
+                        "completion_criteria": next_criteria,
+                        "priority": "medium",
+                        "prerequisite_task_ids": [f"w{week_no}-t1"],
+                    },
+                ],
+            }
+        )
     return {
         "id": str(uuid4()),
         "goal": data.goal.strip(),
@@ -879,10 +1180,14 @@ def _build_grounded_plan(
     if not client:
         return plan
 
-    query = " ".join([
-        data.goal, *data.focus_skills, *profile.get("interest_skills", []),
-        data.additional_requirements,
-    ]).strip()
+    query = " ".join(
+        [
+            data.goal,
+            *data.focus_skills,
+            *profile.get("interest_skills", []),
+            data.additional_requirements,
+        ]
+    ).strip()
     sources = search_knowledge(query, limit=8)
     if not sources:
         return plan
@@ -899,20 +1204,33 @@ def _build_grounded_plan(
         if len(generated.weeks) != len(plan["weeks"]):
             raise ValueError("AI plan changed the requested duration")
         candidate = deepcopy(plan)
-        allowed_sources = {str(source["source_id"]): str(source["title"]) for source in sources}
+        allowed_sources = {
+            str(source["source_id"]): str(source["title"]) for source in sources
+        }
         for existing_week, generated_week in zip(candidate["weeks"], generated.weeks):
-            if generated_week.week_no != existing_week["week_no"] or len(generated_week.tasks) != len(existing_week["tasks"]):
+            if generated_week.week_no != existing_week["week_no"] or len(
+                generated_week.tasks
+            ) != len(existing_week["tasks"]):
                 raise ValueError("AI plan changed the fixed week or task structure")
             existing_week["weekly_goal"] = generated_week.weekly_goal
-            for existing_task, generated_task in zip(existing_week["tasks"], generated_week.tasks):
+            for existing_task, generated_task in zip(
+                existing_week["tasks"], generated_week.tasks
+            ):
                 existing_task["title"] = generated_task.title
                 existing_task["deliverable"] = generated_task.deliverable
-                existing_task["completion_criteria"] = generated_task.completion_criteria
-                resource_ids = [source_id for source_id in generated_task.resource_ids if source_id in allowed_sources]
+                existing_task["completion_criteria"] = (
+                    generated_task.completion_criteria
+                )
+                resource_ids = [
+                    source_id
+                    for source_id in generated_task.resource_ids
+                    if source_id in allowed_sources
+                ]
                 if not resource_ids:
                     raise ValueError("AI plan referenced no retrieved source")
                 existing_task["learning_resources"] = [
-                    f"[{source_id}] {allowed_sources[source_id]}" for source_id in resource_ids
+                    f"[{source_id}] {allowed_sources[source_id]}"
+                    for source_id in resource_ids
                 ]
         candidate["generated_by"] = "retrieval_augmented_ai"
         candidate["source_ids"] = list(allowed_sources)
@@ -944,8 +1262,13 @@ def _validate_plan(plan: dict[str, Any]) -> list[str]:
                 continue
             total = 0
             for task in tasks:
-                if not all(str(task.get(key, "")).strip() for key in ("title", "deliverable", "completion_criteria")):
-                    errors.append(f"{index}주차 과제에 제목, 결과물, 완료 기준이 필요합니다.")
+                if not all(
+                    str(task.get(key, "")).strip()
+                    for key in ("title", "deliverable", "completion_criteria")
+                ):
+                    errors.append(
+                        f"{index}주차 과제에 제목, 결과물, 완료 기준이 필요합니다."
+                    )
                 try:
                     hours = float(task.get("estimated_hours", 0))
                     if hours <= 0:
@@ -954,7 +1277,9 @@ def _validate_plan(plan: dict[str, Any]) -> list[str]:
                 except (TypeError, ValueError):
                     errors.append(f"{index}주차 과제 시간을 확인해 주세요.")
             if total > weekly_hours:
-                errors.append(f"{index}주차 과제 시간({total:g}시간)이 주당 가능 시간({weekly_hours}시간)을 초과합니다.")
+                errors.append(
+                    f"{index}주차 과제 시간({total:g}시간)이 주당 가능 시간({weekly_hours}시간)을 초과합니다."
+                )
     except (AttributeError, TypeError, ValueError):
         errors.append("학습계획 형식이 올바르지 않습니다.")
     return list(dict.fromkeys(errors))
@@ -971,7 +1296,9 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
     def connect() -> Iterator[Any]:
         if use_postgres:
             connection = psycopg.connect(
-                database_url, row_factory=dict_row, prepare_threshold=None,
+                database_url,
+                row_factory=dict_row,
+                prepare_threshold=None,
             )
             try:
                 yield PostgresConnection(connection)
@@ -1138,10 +1465,16 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
                 row["name"] for row in db.execute("PRAGMA table_info(users)").fetchall()
             }
             if "terms_version" not in user_columns:
-                db.execute("ALTER TABLE users ADD COLUMN terms_version TEXT NOT NULL DEFAULT 'v1.0'")
+                db.execute(
+                    "ALTER TABLE users ADD COLUMN terms_version TEXT NOT NULL DEFAULT 'v1.0'"
+                )
             if "privacy_version" not in user_columns:
-                db.execute("ALTER TABLE users ADD COLUMN privacy_version TEXT NOT NULL DEFAULT 'v1.0'")
-            db.execute("UPDATE assessments SET status='in_progress' WHERE status='grading'")
+                db.execute(
+                    "ALTER TABLE users ADD COLUMN privacy_version TEXT NOT NULL DEFAULT 'v1.0'"
+                )
+            db.execute(
+                "UPDATE assessments SET status='in_progress' WHERE status='grading'"
+            )
 
     app = FastAPI(title="AI DevCoach", version="1.0.0")
     app.state.connect = connect
@@ -1193,20 +1526,32 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             "X-GitHub-Api-Version": "2022-11-28",
             "User-Agent": "AI-DevCoach",
         }
-        with httpx.Client(timeout=15.0, headers=headers, follow_redirects=False) as github:
-            repository = _github_get(github, f"/repos/{quote(owner, safe='')}/{quote(repo_name, safe='')}")
+        with httpx.Client(
+            timeout=15.0, headers=headers, follow_redirects=False
+        ) as github:
+            repository = _github_get(
+                github, f"/repos/{quote(owner, safe='')}/{quote(repo_name, safe='')}"
+            )
             if repository.get("private"):
-                raise HTTPException(status_code=403, detail="MVP에서는 공개 저장소만 분석할 수 있습니다.")
+                raise HTTPException(
+                    status_code=403,
+                    detail="MVP에서는 공개 저장소만 분석할 수 있습니다.",
+                )
             branch = payload.branch or repository.get("default_branch", "")
             if not branch or len(branch) > 255:
-                raise HTTPException(status_code=422, detail="분석할 Branch를 확인해 주세요.")
+                raise HTTPException(
+                    status_code=422, detail="분석할 Branch를 확인해 주세요."
+                )
             branch_data = _github_get(
                 github,
                 f"/repos/{quote(owner, safe='')}/{quote(repo_name, safe='')}/branches/{quote(branch, safe='')}",
             )
             commit_sha = branch_data.get("commit", {}).get("sha", "")
             if not commit_sha:
-                raise HTTPException(status_code=502, detail="Branch의 기준 Commit을 확인하지 못했습니다.")
+                raise HTTPException(
+                    status_code=502,
+                    detail="Branch의 기준 Commit을 확인하지 못했습니다.",
+                )
             tree_data = _github_get(
                 github,
                 f"/repos/{quote(owner, safe='')}/{quote(repo_name, safe='')}/git/trees/{quote(commit_sha, safe='')}",
@@ -1214,7 +1559,8 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             )
             tree_entries = tree_data.get("tree", [])
             paths = [
-                entry["path"] for entry in tree_entries
+                entry["path"]
+                for entry in tree_entries
                 if entry.get("type") == "blob" and isinstance(entry.get("path"), str)
             ][:5000]
             if tree_data.get("truncated"):
@@ -1230,7 +1576,9 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
                 encoded_readme = readme_data.get("content", "")
                 if readme_data.get("encoding") == "base64":
                     readme = _redact_sensitive_content(
-                        base64.b64decode(encoded_readme).decode("utf-8", errors="replace")[:20000]
+                        base64.b64decode(encoded_readme).decode(
+                            "utf-8", errors="replace"
+                        )[:20000]
                     )
             except HTTPException as exc:
                 if exc.status_code != 404:
@@ -1245,18 +1593,31 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
                 f"/repos/{quote(owner, safe='')}/{quote(repo_name, safe='')}/commits",
                 params={"sha": branch, "per_page": 10},
             )
-            sensitive_path = re.compile(r"(^|/)(\.env($|\.)|secrets?\.|credentials?\.|id_rsa|.*\.pem$)", re.IGNORECASE)
+            sensitive_path = re.compile(
+                r"(^|/)(\.env($|\.)|secrets?\.|credentials?\.|id_rsa|.*\.pem$)",
+                re.IGNORECASE,
+            )
             source_candidates = [
-                path for path in paths
-                if path.lower().endswith((".py", ".js", ".jsx", ".ts", ".tsx", ".java", ".go", ".rs"))
+                path
+                for path in paths
+                if path.lower().endswith(
+                    (".py", ".js", ".jsx", ".ts", ".tsx", ".java", ".go", ".rs")
+                )
                 and not sensitive_path.search(path)
             ]
-            source_candidates.sort(key=lambda path: (not re.search(r"(^|/)(main|app|index)\.", path, re.IGNORECASE), len(path)))
+            source_candidates.sort(
+                key=lambda path: (
+                    not re.search(r"(^|/)(main|app|index)\.", path, re.IGNORECASE),
+                    len(path),
+                )
+            )
             source_files: dict[str, str] = {}
             for path in source_candidates:
                 if len(source_files) >= 3:
                     break
-                file_entry = next((entry for entry in tree_entries if entry.get("path") == path), {})
+                file_entry = next(
+                    (entry for entry in tree_entries if entry.get("path") == path), {}
+                )
                 if file_entry.get("size", 0) > 20000:
                     continue
                 content_data = _github_get(
@@ -1266,13 +1627,19 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
                 )
                 if content_data.get("encoding") != "base64":
                     continue
-                content = base64.b64decode(content_data.get("content", "")).decode("utf-8", errors="replace")[:20000]
+                content = base64.b64decode(content_data.get("content", "")).decode(
+                    "utf-8", errors="replace"
+                )[:20000]
                 if _redact_sensitive_content(content) != content:
                     continue
                 source_files[path] = content
 
         review, analysis_source = _project_review(
-            repository, paths, readme, source_files, payload.task_criteria,
+            repository,
+            paths,
+            readme,
+            source_files,
+            payload.task_criteria,
         )
         now = _utcnow().isoformat()
         analysis_id = str(uuid4())
@@ -1304,9 +1671,15 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             "commits": [
                 {
                     "sha": item.get("sha"),
-                    "message": item.get("commit", {}).get("message", "").splitlines()[0][:200],
-                    "author": item.get("commit", {}).get("author", {}).get("name", "알 수 없음"),
-                    "committed_at": item.get("commit", {}).get("author", {}).get("date"),
+                    "message": item.get("commit", {})
+                    .get("message", "")
+                    .splitlines()[0][:200],
+                    "author": item.get("commit", {})
+                    .get("author", {})
+                    .get("name", "알 수 없음"),
+                    "committed_at": item.get("commit", {})
+                    .get("author", {})
+                    .get("date"),
                     "url": item.get("html_url"),
                 }
                 for item in commits[:10]
@@ -1319,13 +1692,24 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             db.execute(
                 "INSERT INTO github_analysis_runs(id,user_id,owner,repo_name,repo_url,branch,commit_sha,result,created_at) "
                 "VALUES(?,?,?,?,?,?,?,?,?)",
-                (analysis_id, user["id"], owner, repo_name, payload.repo_url, branch, commit_sha,
-                 json.dumps(result, ensure_ascii=False), now),
+                (
+                    analysis_id,
+                    user["id"],
+                    owner,
+                    repo_name,
+                    payload.repo_url,
+                    branch,
+                    commit_sha,
+                    json.dumps(result, ensure_ascii=False),
+                    now,
+                ),
             )
         return result
 
     @app.get("/api/github/analyses")
-    def list_github_analyses(user: dict[str, Any] = Depends(current_user)) -> list[dict[str, Any]]:
+    def list_github_analyses(
+        user: dict[str, Any] = Depends(current_user),
+    ) -> list[dict[str, Any]]:
         with connect() as db:
             rows = db.execute(
                 "SELECT id,owner,repo_name,repo_url,branch,commit_sha,result,created_at "
@@ -1334,9 +1718,13 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             ).fetchall()
         return [
             {
-                "id": row["id"], "owner": row["owner"], "repo_name": row["repo_name"],
-                "repo_url": row["repo_url"], "branch": row["branch"],
-                "commit_sha": row["commit_sha"], "created_at": row["created_at"],
+                "id": row["id"],
+                "owner": row["owner"],
+                "repo_name": row["repo_name"],
+                "repo_url": row["repo_url"],
+                "branch": row["branch"],
+                "commit_sha": row["commit_sha"],
+                "created_at": row["created_at"],
                 "summary": json.loads(row["result"])["review"]["summary"],
             }
             for row in rows
@@ -1353,13 +1741,18 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
                 (analysis_id, user["id"]),
             ).fetchone()
         if row is None:
-            raise HTTPException(status_code=404, detail="프로젝트 분석 이력을 찾을 수 없습니다.")
+            raise HTTPException(
+                status_code=404, detail="프로젝트 분석 이력을 찾을 수 없습니다."
+            )
         return json.loads(row["result"])
 
     @app.post("/api/auth/signup", status_code=201)
     def signup(payload: SignupInput, response: Response) -> dict[str, Any]:
         if not payload.terms_agreed or not payload.privacy_agreed:
-            raise HTTPException(status_code=400, detail="필수 약관과 개인정보 수집·이용에 동의해 주세요.")
+            raise HTTPException(
+                status_code=400,
+                detail="필수 약관과 개인정보 수집·이용에 동의해 주세요.",
+            )
         now = _utcnow().isoformat()
         user_id = str(uuid4())
         token = secrets.token_urlsafe(32)
@@ -1368,18 +1761,35 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
                 db.execute(
                     "INSERT INTO users(id,email,password_hash,terms_agreed_at,terms_version,privacy_agreed_at,privacy_version,created_at) "
                     "VALUES(?,?,?,?,?,?,?,?)",
-                    (user_id, payload.email, _hash_password(payload.password), now, "v1.0", now, "v1.0", now),
+                    (
+                        user_id,
+                        payload.email,
+                        _hash_password(payload.password),
+                        now,
+                        "v1.0",
+                        now,
+                        "v1.0",
+                        now,
+                    ),
                 )
                 db.execute(
                     "INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,?,?)",
-                    (_session_hash(token), user_id, (_utcnow() + timedelta(days=SESSION_DAYS)).isoformat()),
+                    (
+                        _session_hash(token),
+                        user_id,
+                        (_utcnow() + timedelta(days=SESSION_DAYS)).isoformat(),
+                    ),
                 )
         except (sqlite3.IntegrityError, psycopg.IntegrityError):
             raise HTTPException(status_code=409, detail="이미 가입된 이메일입니다.")
         response.set_cookie(
-            COOKIE_NAME, token, httponly=True, samesite="lax",
+            COOKIE_NAME,
+            token,
+            httponly=True,
+            samesite="lax",
             secure=os.getenv("COOKIE_SECURE", "false").lower() == "true",
-            max_age=SESSION_DAYS * 24 * 60 * 60, path="/",
+            max_age=SESSION_DAYS * 24 * 60 * 60,
+            path="/",
         )
         return {"id": user_id, "email": payload.email, "profile_completed": False}
 
@@ -1387,23 +1797,43 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
     def login(payload: LoginInput, response: Response) -> dict[str, Any]:
         email = payload.email.strip().lower()
         with connect() as db:
-            user = db.execute("SELECT id,email,password_hash FROM users WHERE email=?", (email,)).fetchone()
-        if user is None or not _verify_password(payload.password, user["password_hash"]):
-            raise HTTPException(status_code=401, detail="이메일 또는 비밀번호를 확인해 주세요.")
+            user = db.execute(
+                "SELECT id,email,password_hash FROM users WHERE email=?", (email,)
+            ).fetchone()
+        if user is None or not _verify_password(
+            payload.password, user["password_hash"]
+        ):
+            raise HTTPException(
+                status_code=401, detail="이메일 또는 비밀번호를 확인해 주세요."
+            )
         token = secrets.token_urlsafe(32)
         now = _utcnow()
         with connect() as db:
             db.execute(
                 "INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,?,?)",
-                (_session_hash(token), user["id"], (now + timedelta(days=SESSION_DAYS)).isoformat()),
+                (
+                    _session_hash(token),
+                    user["id"],
+                    (now + timedelta(days=SESSION_DAYS)).isoformat(),
+                ),
             )
-            profile = db.execute("SELECT 1 FROM profiles WHERE user_id=?", (user["id"],)).fetchone()
+            profile = db.execute(
+                "SELECT 1 FROM profiles WHERE user_id=?", (user["id"],)
+            ).fetchone()
         response.set_cookie(
-            COOKIE_NAME, token, httponly=True, samesite="lax",
+            COOKIE_NAME,
+            token,
+            httponly=True,
+            samesite="lax",
             secure=os.getenv("COOKIE_SECURE", "false").lower() == "true",
-            max_age=SESSION_DAYS * 24 * 60 * 60, path="/",
+            max_age=SESSION_DAYS * 24 * 60 * 60,
+            path="/",
         )
-        return {"id": user["id"], "email": user["email"], "profile_completed": profile is not None}
+        return {
+            "id": user["id"],
+            "email": user["email"],
+            "profile_completed": profile is not None,
+        }
 
     @app.post("/api/auth/password-reset-requests")
     def request_password_reset(
@@ -1415,15 +1845,21 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             "message": "해당 이메일 주소로 계정이 존재하면 비밀번호 재설정 링크를 보냈습니다."
         }
         with connect() as db:
-            user = db.execute("SELECT id FROM users WHERE email=?", (payload.email,)).fetchone()
+            user = db.execute(
+                "SELECT id FROM users WHERE email=?", (payload.email,)
+            ).fetchone()
             if user is not None:
                 token = secrets.token_urlsafe(32)
                 now = _utcnow()
-                db.execute("DELETE FROM password_reset_tokens WHERE user_id=?", (user["id"],))
+                db.execute(
+                    "DELETE FROM password_reset_tokens WHERE user_id=?", (user["id"],)
+                )
                 db.execute(
                     "INSERT INTO password_reset_tokens(token_hash,user_id,created_at,expires_at) VALUES(?,?,?,?)",
                     (
-                        _session_hash(token), user["id"], now.isoformat(),
+                        _session_hash(token),
+                        user["id"],
+                        now.isoformat(),
                         (now + timedelta(minutes=30)).isoformat(),
                     ),
                 )
@@ -1443,14 +1879,18 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
         if dev_mode:
             return {**response_body, "dev_reset_url": reset_url}
 
-        background_tasks.add_task(_deliver_password_reset_email, payload.email, reset_url)
+        background_tasks.add_task(
+            _deliver_password_reset_email, payload.email, reset_url
+        )
         return response_body
 
     @app.post("/api/auth/password-resets")
     def reset_password(payload: PasswordResetInput) -> dict[str, str]:
         now = _utcnow().isoformat()
         token_hash = _session_hash(payload.token)
-        invalid_token = "비밀번호 재설정 링크가 유효하지 않거나 만료되었습니다. 다시 요청해 주세요."
+        invalid_token = (
+            "비밀번호 재설정 링크가 유효하지 않거나 만료되었습니다. 다시 요청해 주세요."
+        )
         with connect() as db:
             token = db.execute(
                 "SELECT user_id FROM password_reset_tokens "
@@ -1473,7 +1913,9 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
                 (_hash_password(payload.password), token["user_id"]),
             )
             db.execute("DELETE FROM sessions WHERE user_id=?", (token["user_id"],))
-            db.execute("DELETE FROM password_reset_tokens WHERE user_id=?", (token["user_id"],))
+            db.execute(
+                "DELETE FROM password_reset_tokens WHERE user_id=?", (token["user_id"],)
+            )
 
         return {"message": "비밀번호를 변경했습니다. 새 비밀번호로 로그인해 주세요."}
 
@@ -1482,7 +1924,9 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
         token = request.cookies.get(COOKIE_NAME)
         if token:
             with connect() as db:
-                db.execute("DELETE FROM sessions WHERE token_hash=?", (_session_hash(token),))
+                db.execute(
+                    "DELETE FROM sessions WHERE token_hash=?", (_session_hash(token),)
+                )
         response.delete_cookie(COOKIE_NAME, path="/", httponly=True, samesite="lax")
         response.status_code = 204
         return response
@@ -1490,7 +1934,9 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
     @app.get("/api/auth/me")
     def me(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
         with connect() as db:
-            profile = db.execute("SELECT * FROM profiles WHERE user_id=?", (user["id"],)).fetchone()
+            profile = db.execute(
+                "SELECT * FROM profiles WHERE user_id=?", (user["id"],)
+            ).fetchone()
             assessment = db.execute(
                 "SELECT id,status,result FROM assessments WHERE user_id=? AND status='submitted' ORDER BY submitted_at DESC LIMIT 1",
                 (user["id"],),
@@ -1503,17 +1949,29 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             "assessment_id": assessment["id"] if assessment else None,
         }
 
-    def save_profile(payload: ProfileInput, user: dict[str, Any], creating: bool) -> dict[str, Any]:
+    def save_profile(
+        payload: ProfileInput, user: dict[str, Any], creating: bool
+    ) -> dict[str, Any]:
         now = _utcnow().isoformat()
         fields = (
-            payload.nickname, payload.learning_goal, payload.self_assessed_level,
-            json.dumps(payload.interest_skills, ensure_ascii=False), payload.weekly_hours,
-            payload.duration_weeks, payload.github_username, payload.learning_notes, now,
+            payload.nickname,
+            payload.learning_goal,
+            payload.self_assessed_level,
+            json.dumps(payload.interest_skills, ensure_ascii=False),
+            payload.weekly_hours,
+            payload.duration_weeks,
+            payload.github_username,
+            payload.learning_notes,
+            now,
         )
         with connect() as db:
-            existing = db.execute("SELECT 1 FROM profiles WHERE user_id=?", (user["id"],)).fetchone()
+            existing = db.execute(
+                "SELECT 1 FROM profiles WHERE user_id=?", (user["id"],)
+            ).fetchone()
             if creating and existing:
-                raise HTTPException(status_code=409, detail="학습 프로필이 이미 등록되어 있습니다.")
+                raise HTTPException(
+                    status_code=409, detail="학습 프로필이 이미 등록되어 있습니다."
+                )
             db.execute(
                 "INSERT INTO profiles(user_id,nickname,learning_goal,self_assessed_level,interest_skills,weekly_hours,"
                 "duration_weeks,github_username,learning_notes,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?) "
@@ -1523,62 +1981,105 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
                 "github_username=excluded.github_username,learning_notes=excluded.learning_notes,updated_at=excluded.updated_at",
                 (user["id"], *fields),
             )
-            row = db.execute("SELECT * FROM profiles WHERE user_id=?", (user["id"],)).fetchone()
+            row = db.execute(
+                "SELECT * FROM profiles WHERE user_id=?", (user["id"],)
+            ).fetchone()
         return _profile_dict(row)
 
     @app.post("/api/profiles", status_code=201)
-    def create_profile(payload: ProfileInput, user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    def create_profile(
+        payload: ProfileInput, user: dict[str, Any] = Depends(current_user)
+    ) -> dict[str, Any]:
         return save_profile(payload, user, True)
 
     @app.get("/api/profiles/me")
     def get_profile(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
         with connect() as db:
-            row = db.execute("SELECT * FROM profiles WHERE user_id=?", (user["id"],)).fetchone()
+            row = db.execute(
+                "SELECT * FROM profiles WHERE user_id=?", (user["id"],)
+            ).fetchone()
         if row is None:
-            raise HTTPException(status_code=404, detail="학습 프로필을 먼저 등록해 주세요.")
+            raise HTTPException(
+                status_code=404, detail="학습 프로필을 먼저 등록해 주세요."
+            )
         return _profile_dict(row)
 
     @app.patch("/api/profiles/me")
-    def update_profile(payload: ProfileInput, user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    def update_profile(
+        payload: ProfileInput, user: dict[str, Any] = Depends(current_user)
+    ) -> dict[str, Any]:
         return save_profile(payload, user, False)
 
     @app.get("/api/assessments/questions")
     def questions(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
         public_questions = [
-            {key: value for key, value in question.items() if key not in {"answer", "explanation"}}
+            {
+                key: value
+                for key, value in question.items()
+                if key not in {"answer", "explanation"}
+            }
             for question in QUESTIONS
         ]
-        return {"questions": public_questions, "total": len(public_questions), "categories": SKILLS}
+        return {
+            "questions": public_questions,
+            "total": len(public_questions),
+            "categories": SKILLS,
+        }
 
     @app.post("/api/assessments/start", status_code=201)
-    def start_assessment(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    def start_assessment(
+        user: dict[str, Any] = Depends(current_user),
+    ) -> dict[str, Any]:
         with connect() as db:
-            if db.execute("SELECT 1 FROM profiles WHERE user_id=?", (user["id"],)).fetchone() is None:
-                raise HTTPException(status_code=409, detail="수준 진단 전에 학습 프로필을 등록해 주세요.")
+            if (
+                db.execute(
+                    "SELECT 1 FROM profiles WHERE user_id=?", (user["id"],)
+                ).fetchone()
+                is None
+            ):
+                raise HTTPException(
+                    status_code=409,
+                    detail="수준 진단 전에 학습 프로필을 등록해 주세요.",
+                )
             active = db.execute(
                 "SELECT * FROM assessments WHERE user_id=? AND status='in_progress' ORDER BY started_at DESC LIMIT 1",
                 (user["id"],),
             ).fetchone()
             if active:
-                return {**dict(active), "answers": json.loads(active["answers"]), "resumed": True}
+                return {
+                    **dict(active),
+                    "answers": json.loads(active["answers"]),
+                    "resumed": True,
+                }
             assessment_id = str(uuid4())
             now = _utcnow().isoformat()
             db.execute(
                 "INSERT INTO assessments(id,user_id,status,answers,started_at) VALUES(?,?,'in_progress','{}',?)",
                 (assessment_id, user["id"], now),
             )
-        return {"id": assessment_id, "status": "in_progress", "answers": {}, "started_at": now, "resumed": False}
+        return {
+            "id": assessment_id,
+            "status": "in_progress",
+            "answers": {},
+            "started_at": now,
+            "resumed": False,
+        }
 
-    def owned_assessment(db: sqlite3.Connection, assessment_id: str, user_id: str) -> sqlite3.Row:
+    def owned_assessment(
+        db: sqlite3.Connection, assessment_id: str, user_id: str
+    ) -> sqlite3.Row:
         row = db.execute(
-            "SELECT * FROM assessments WHERE id=? AND user_id=?", (assessment_id, user_id)
+            "SELECT * FROM assessments WHERE id=? AND user_id=?",
+            (assessment_id, user_id),
         ).fetchone()
         if row is None:
             raise HTTPException(status_code=404, detail="진단 세션을 찾을 수 없습니다.")
         return row
 
     @app.get("/api/assessments/latest")
-    def latest_assessment(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    def latest_assessment(
+        user: dict[str, Any] = Depends(current_user),
+    ) -> dict[str, Any]:
         with connect() as db:
             row = db.execute(
                 "SELECT id,status,result FROM assessments WHERE user_id=? AND status='submitted' ORDER BY submitted_at DESC LIMIT 1",
@@ -1589,7 +2090,9 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
         return {"id": row["id"], **json.loads(row["result"])}
 
     @app.get("/api/assessments/{assessment_id}")
-    def get_assessment(assessment_id: str, user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    def get_assessment(
+        assessment_id: str, user: dict[str, Any] = Depends(current_user)
+    ) -> dict[str, Any]:
         with connect() as db:
             row = owned_assessment(db, assessment_id, user["id"])
         result = dict(row)
@@ -1599,13 +2102,19 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
 
     @app.patch("/api/assessments/{assessment_id}/answers")
     def save_answer(
-        assessment_id: str, payload: AnswerInput, user: dict[str, Any] = Depends(current_user)
+        assessment_id: str,
+        payload: AnswerInput,
+        user: dict[str, Any] = Depends(current_user),
     ) -> dict[str, Any]:
         if payload.question_id not in {q["id"] for q in QUESTIONS}:
             raise HTTPException(status_code=404, detail="진단 문항을 찾을 수 없습니다.")
         question = next(q for q in QUESTIONS if q["id"] == payload.question_id)
-        if question["type"] == "objective" and payload.answer not in {o["id"] for o in question["options"]}:
-            raise HTTPException(status_code=422, detail="문항의 선택지를 확인해 주세요.")
+        if question["type"] == "objective" and payload.answer not in {
+            o["id"] for o in question["options"]
+        }:
+            raise HTTPException(
+                status_code=422, detail="문항의 선택지를 확인해 주세요."
+            )
         with connect() as db:
             row = owned_assessment(db, assessment_id, user["id"])
             if row["status"] != "in_progress":
@@ -1619,13 +2128,18 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
         return {"saved": True, "answered": len(answers)}
 
     @app.post("/api/assessments/{assessment_id}/submit")
-    def submit_assessment(assessment_id: str, user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    def submit_assessment(
+        assessment_id: str, user: dict[str, Any] = Depends(current_user)
+    ) -> dict[str, Any]:
         with connect() as db:
             row = owned_assessment(db, assessment_id, user["id"])
             if row["status"] == "submitted":
                 return json.loads(row["result"])
             if row["status"] == "grading":
-                raise HTTPException(status_code=409, detail="이미 서술형 답안을 채점하고 있습니다. 잠시 기다려 주세요.")
+                raise HTTPException(
+                    status_code=409,
+                    detail="이미 서술형 답안을 채점하고 있습니다. 잠시 기다려 주세요.",
+                )
             answers = json.loads(row["answers"])
             db.execute(
                 "UPDATE assessments SET status='grading' WHERE id=? AND user_id=?",
@@ -1656,10 +2170,17 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
         with connect() as db:
             row = owned_assessment(db, assessment_id, user["id"])
             if row["status"] != "grading":
-                raise HTTPException(status_code=409, detail="진단 세션 상태가 변경되었습니다. 다시 확인해 주세요.")
+                raise HTTPException(
+                    status_code=409,
+                    detail="진단 세션 상태가 변경되었습니다. 다시 확인해 주세요.",
+                )
             db.execute(
                 "UPDATE assessments SET status='submitted',result=?,submitted_at=? WHERE id=?",
-                (json.dumps(result, ensure_ascii=False), result["completed_at"], assessment_id),
+                (
+                    json.dumps(result, ensure_ascii=False),
+                    result["completed_at"],
+                    assessment_id,
+                ),
             )
             db.execute(
                 "UPDATE profiles SET assessment_level=?,updated_at=? WHERE user_id=?",
@@ -1670,48 +2191,80 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
     @app.get("/api/plans/context")
     def plan_context(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
         with connect() as db:
-            profile = db.execute("SELECT * FROM profiles WHERE user_id=?", (user["id"],)).fetchone()
+            profile = db.execute(
+                "SELECT * FROM profiles WHERE user_id=?", (user["id"],)
+            ).fetchone()
             assessment = db.execute(
                 "SELECT id,result FROM assessments WHERE user_id=? AND status='submitted' ORDER BY submitted_at DESC LIMIT 1",
                 (user["id"],),
             ).fetchone()
         if profile is None:
-            raise HTTPException(status_code=409, detail="학습 프로필을 먼저 등록해 주세요.")
+            raise HTTPException(
+                status_code=409, detail="학습 프로필을 먼저 등록해 주세요."
+            )
         if assessment is None:
-            raise HTTPException(status_code=409, detail="계획을 만들기 전에 수준 진단을 완료해 주세요.")
-        return {"profile": _profile_dict(profile), "assessment_id": assessment["id"], "assessment": json.loads(assessment["result"])}
+            raise HTTPException(
+                status_code=409, detail="계획을 만들기 전에 수준 진단을 완료해 주세요."
+            )
+        return {
+            "profile": _profile_dict(profile),
+            "assessment_id": assessment["id"],
+            "assessment": json.loads(assessment["result"]),
+        }
 
     @app.post("/api/plans/generate", status_code=201)
-    def generate_plan(payload: PlanGenerateInput, user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    def generate_plan(
+        payload: PlanGenerateInput, user: dict[str, Any] = Depends(current_user)
+    ) -> dict[str, Any]:
         with connect() as db:
-            profile_row = db.execute("SELECT * FROM profiles WHERE user_id=?", (user["id"],)).fetchone()
+            profile_row = db.execute(
+                "SELECT * FROM profiles WHERE user_id=?", (user["id"],)
+            ).fetchone()
             assessment = db.execute(
                 "SELECT result FROM assessments WHERE user_id=? AND status='submitted' ORDER BY submitted_at DESC LIMIT 1",
                 (user["id"],),
             ).fetchone()
         if profile_row is None or assessment is None:
-            raise HTTPException(status_code=409, detail="프로필 등록과 수준 진단을 먼저 완료해 주세요.")
+            raise HTTPException(
+                status_code=409, detail="프로필 등록과 수준 진단을 먼저 완료해 주세요."
+            )
         profile = _profile_dict(profile_row)
         result = json.loads(assessment["result"])
         plan = _build_grounded_plan(payload, profile, result)
         errors = _validate_plan(plan)
         if errors:
-            raise HTTPException(status_code=500, detail={"message": "생성한 계획 검증에 실패했습니다.", "errors": errors})
+            raise HTTPException(
+                status_code=500,
+                detail={
+                    "message": "생성한 계획 검증에 실패했습니다.",
+                    "errors": errors,
+                },
+            )
         now = _utcnow().isoformat()
         with connect() as db:
             db.execute(
                 "INSERT INTO plans(id,user_id,status,data,created_at,updated_at) VALUES(?,?,'draft',?,?,?)",
-                (plan["id"], user["id"], json.dumps(plan, ensure_ascii=False), now, now),
+                (
+                    plan["id"],
+                    user["id"],
+                    json.dumps(plan, ensure_ascii=False),
+                    now,
+                    now,
+                ),
             )
         return plan
 
     def owned_plan(db: sqlite3.Connection, plan_id: str, user_id: str) -> sqlite3.Row:
-        row = db.execute("SELECT * FROM plans WHERE id=? AND user_id=?", (plan_id, user_id)).fetchone()
+        row = db.execute(
+            "SELECT * FROM plans WHERE id=? AND user_id=?", (plan_id, user_id)
+        ).fetchone()
         if row is None:
             raise HTTPException(status_code=404, detail="학습계획을 찾을 수 없습니다.")
         return row
 
-    def active_plan(db: sqlite3.Connection, user_id: str) -> tuple[sqlite3.Row, dict[str, Any]]:
+    def active_plan(
+        db: sqlite3.Connection, user_id: str
+    ) -> tuple[sqlite3.Row, dict[str, Any]]:
         row = db.execute(
             "SELECT * FROM plans WHERE user_id=? AND status='approved' ORDER BY updated_at DESC LIMIT 1",
             (user_id,),
@@ -1734,10 +2287,18 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             "SELECT * FROM task_progress WHERE plan_id=? AND task_id=? AND user_id=?",
             (plan_id, task_id, user_id),
         ).fetchone()
-        result = dict(row) if row else {
-            "status": "todo", "learning_start_date": None, "learning_notes": "",
-            "difficulty_notes": "", "learner_memo": "", "completed_at": None,
-        }
+        result = (
+            dict(row)
+            if row
+            else {
+                "status": "todo",
+                "learning_start_date": None,
+                "learning_notes": "",
+                "difficulty_notes": "",
+                "learner_memo": "",
+                "completed_at": None,
+            }
+        )
         result["actual_minutes"] = db.execute(
             "SELECT COALESCE(SUM(duration_minutes),0) AS actual_minutes FROM learning_time_logs "
             "WHERE plan_id=? AND task_id=? AND user_id=?",
@@ -1750,16 +2311,33 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
         return result
 
     def log_activity(
-        db: sqlite3.Connection, plan_id: str, task_id: str, user_id: str,
-        event_type: str, old_value: Any = None, new_value: Any = None,
+        db: sqlite3.Connection,
+        plan_id: str,
+        task_id: str,
+        user_id: str,
+        event_type: str,
+        old_value: Any = None,
+        new_value: Any = None,
     ) -> None:
         db.execute(
             "INSERT INTO learning_activity_logs(id,plan_id,task_id,user_id,event_type,old_value,new_value,created_at) "
             "VALUES(?,?,?,?,?,?,?,?)",
             (
-                str(uuid4()), plan_id, task_id, user_id, event_type,
-                json.dumps(old_value, ensure_ascii=False) if old_value is not None else None,
-                json.dumps(new_value, ensure_ascii=False) if new_value is not None else None,
+                str(uuid4()),
+                plan_id,
+                task_id,
+                user_id,
+                event_type,
+                (
+                    json.dumps(old_value, ensure_ascii=False)
+                    if old_value is not None
+                    else None
+                ),
+                (
+                    json.dumps(new_value, ensure_ascii=False)
+                    if new_value is not None
+                    else None
+                ),
                 _utcnow().isoformat(),
             ),
         )
@@ -1776,22 +2354,31 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
         return json.loads(row["data"])
 
     @app.get("/api/plans/{plan_id}")
-    def get_plan(plan_id: str, user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    def get_plan(
+        plan_id: str, user: dict[str, Any] = Depends(current_user)
+    ) -> dict[str, Any]:
         with connect() as db:
             row = owned_plan(db, plan_id, user["id"])
         return json.loads(row["data"])
 
     @app.patch("/api/plans/{plan_id}")
     def update_plan(
-        plan_id: str, payload: PlanUpdateInput, user: dict[str, Any] = Depends(current_user)
+        plan_id: str,
+        payload: PlanUpdateInput,
+        user: dict[str, Any] = Depends(current_user),
     ) -> dict[str, Any]:
         errors = _validate_plan(payload.plan)
         if errors:
-            raise HTTPException(status_code=422, detail={"message": "학습계획을 저장할 수 없습니다.", "errors": errors})
+            raise HTTPException(
+                status_code=422,
+                detail={"message": "학습계획을 저장할 수 없습니다.", "errors": errors},
+            )
         with connect() as db:
             row = owned_plan(db, plan_id, user["id"])
             if row["status"] != "draft":
-                raise HTTPException(status_code=409, detail="초안 상태의 계획만 수정할 수 있습니다.")
+                raise HTTPException(
+                    status_code=409, detail="초안 상태의 계획만 수정할 수 있습니다."
+                )
             plan = payload.plan
             plan["id"] = plan_id
             plan["status"] = "draft"
@@ -1803,22 +2390,31 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
         return plan
 
     @app.post("/api/plans/{plan_id}/validate")
-    def validate_plan_endpoint(plan_id: str, user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    def validate_plan_endpoint(
+        plan_id: str, user: dict[str, Any] = Depends(current_user)
+    ) -> dict[str, Any]:
         with connect() as db:
             row = owned_plan(db, plan_id, user["id"])
         errors = _validate_plan(json.loads(row["data"]))
         return {"valid": not errors, "errors": errors}
 
     @app.post("/api/plans/{plan_id}/approve")
-    def approve_plan(plan_id: str, user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    def approve_plan(
+        plan_id: str, user: dict[str, Any] = Depends(current_user)
+    ) -> dict[str, Any]:
         with connect() as db:
             row = owned_plan(db, plan_id, user["id"])
             if row["status"] != "draft":
-                raise HTTPException(status_code=409, detail="초안 상태의 계획만 승인할 수 있습니다.")
+                raise HTTPException(
+                    status_code=409, detail="초안 상태의 계획만 승인할 수 있습니다."
+                )
             plan = json.loads(row["data"])
             errors = _validate_plan(plan)
             if errors:
-                raise HTTPException(status_code=422, detail={"message": "계획 검증에 실패했습니다.", "errors": errors})
+                raise HTTPException(
+                    status_code=422,
+                    detail={"message": "계획 검증에 실패했습니다.", "errors": errors},
+                )
             plan["status"] = "approved"
             plan["approved_at"] = _utcnow().isoformat()
             db.execute(
@@ -1828,7 +2424,9 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
         return plan
 
     @app.get("/api/progress/dashboard")
-    def progress_dashboard(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    def progress_dashboard(
+        user: dict[str, Any] = Depends(current_user),
+    ) -> dict[str, Any]:
         with connect() as db:
             plan_row, plan = active_plan(db, user["id"])
             weeks = []
@@ -1839,7 +2437,9 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
                 week_completed = week_planned = week_actual = 0
                 for task in week["tasks"]:
                     task_id = str(task["id"])
-                    progress = task_progress_dict(db, plan_row["id"], task_id, user["id"])
+                    progress = task_progress_dict(
+                        db, plan_row["id"], task_id, user["id"]
+                    )
                     submission = db.execute(
                         "SELECT id,github_url,explanation,status,submitted_at FROM task_submissions "
                         "WHERE plan_id=? AND task_id=? AND user_id=? ORDER BY submitted_at DESC LIMIT 1",
@@ -1847,17 +2447,24 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
                     ).fetchone()
                     status = progress["status"]
                     expected = int(float(task["estimated_hours"]) * 60)
-                    week_tasks.append({
-                        **task, "week_no": week["week_no"], "status": status,
-                        "learning_start_date": progress["learning_start_date"],
-                        "learning_notes": progress["learning_notes"],
-                        "difficulty_notes": progress["difficulty_notes"],
-                        "learner_memo": progress["learner_memo"],
-                        "completed_at": progress["completed_at"],
-                        "planned_minutes": expected, "actual_minutes": progress["actual_minutes"],
-                        "submission_count": progress["submission_count"],
-                        "latest_submission": dict(submission) if submission else None,
-                    })
+                    week_tasks.append(
+                        {
+                            **task,
+                            "week_no": week["week_no"],
+                            "status": status,
+                            "learning_start_date": progress["learning_start_date"],
+                            "learning_notes": progress["learning_notes"],
+                            "difficulty_notes": progress["difficulty_notes"],
+                            "learner_memo": progress["learner_memo"],
+                            "completed_at": progress["completed_at"],
+                            "planned_minutes": expected,
+                            "actual_minutes": progress["actual_minutes"],
+                            "submission_count": progress["submission_count"],
+                            "latest_submission": (
+                                dict(submission) if submission else None
+                            ),
+                        }
+                    )
                     task_count += 1
                     planned_minutes += expected
                     actual_minutes += progress["actual_minutes"]
@@ -1873,20 +2480,37 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
                     if task.get("deliverable"):
                         submission_tasks += 1
                         submitted_tasks += int(bool(submission))
-                weeks.append({
-                    "week_no": week["week_no"], "weekly_goal": week["weekly_goal"],
-                    "total_tasks": len(week_tasks), "completed_tasks": week_completed,
-                    "completion_rate": round(week_completed / len(week_tasks) * 100) if week_tasks else 0,
-                    "planned_minutes": week_planned, "actual_minutes": week_actual,
-                    "tasks": week_tasks,
-                })
+                weeks.append(
+                    {
+                        "week_no": week["week_no"],
+                        "weekly_goal": week["weekly_goal"],
+                        "total_tasks": len(week_tasks),
+                        "completed_tasks": week_completed,
+                        "completion_rate": (
+                            round(week_completed / len(week_tasks) * 100)
+                            if week_tasks
+                            else 0
+                        ),
+                        "planned_minutes": week_planned,
+                        "actual_minutes": week_actual,
+                        "tasks": week_tasks,
+                    }
+                )
         return {
-            "plan_id": plan_row["id"], "goal": plan["goal"], "status": plan["status"],
-            "total_tasks": task_count, "completed_tasks": completed_count,
-            "completion_rate": round(completed_count / task_count * 100) if task_count else 0,
-            "planned_minutes": planned_minutes, "actual_minutes": actual_minutes,
-            "in_progress_tasks": in_progress_count, "blocked_tasks": blocked_count,
-            "submission_tasks": submission_tasks, "submitted_tasks": submitted_tasks,
+            "plan_id": plan_row["id"],
+            "goal": plan["goal"],
+            "status": plan["status"],
+            "total_tasks": task_count,
+            "completed_tasks": completed_count,
+            "completion_rate": (
+                round(completed_count / task_count * 100) if task_count else 0
+            ),
+            "planned_minutes": planned_minutes,
+            "actual_minutes": actual_minutes,
+            "in_progress_tasks": in_progress_count,
+            "blocked_tasks": blocked_count,
+            "submission_tasks": submission_tasks,
+            "submitted_tasks": submitted_tasks,
             "weeks": weeks,
         }
 
@@ -1916,7 +2540,9 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
                     for week in plan_data.get("weeks", []):
                         for task in week.get("tasks", []):
                             task_id = str(task["id"])
-                            progress = task_progress_dict(db, plan_row["id"], task_id, member["id"])
+                            progress = task_progress_dict(
+                                db, plan_row["id"], task_id, member["id"]
+                            )
                             submission = db.execute(
                                 "SELECT github_url,submitted_at FROM task_submissions "
                                 "WHERE plan_id=? AND task_id=? AND user_id=? "
@@ -1928,36 +2554,64 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
                             in_progress_tasks += int(status == "in_progress")
                             blocked_tasks += int(status == "blocked")
                             actual_minutes += progress["actual_minutes"]
-                            task_planned_minutes = int(float(task["estimated_hours"]) * 60)
+                            task_planned_minutes = int(
+                                float(task["estimated_hours"]) * 60
+                            )
                             planned_minutes += task_planned_minutes
-                            tasks.append({
-                                "id": task_id, "title": task["title"],
-                                "week_no": week["week_no"], "status": status,
-                                "planned_minutes": task_planned_minutes,
-                                "actual_minutes": progress["actual_minutes"],
-                                "submission_url": submission["github_url"] if submission else None,
-                                "submitted_at": submission["submitted_at"] if submission else None,
-                            })
+                            tasks.append(
+                                {
+                                    "id": task_id,
+                                    "title": task["title"],
+                                    "week_no": week["week_no"],
+                                    "status": status,
+                                    "planned_minutes": task_planned_minutes,
+                                    "actual_minutes": progress["actual_minutes"],
+                                    "submission_url": (
+                                        submission["github_url"] if submission else None
+                                    ),
+                                    "submitted_at": (
+                                        submission["submitted_at"]
+                                        if submission
+                                        else None
+                                    ),
+                                }
+                            )
                 total_tasks = len(tasks)
-                users.append({
-                    "id": member["id"], "email": member["email"],
-                    "created_at": member["created_at"], "nickname": member["nickname"],
-                    "learning_goal": member["learning_goal"], "plan_goal": plan_goal,
-                    "plan_status": plan_status, "total_tasks": total_tasks,
-                    "completed_tasks": completed_tasks,
-                    "in_progress_tasks": in_progress_tasks, "blocked_tasks": blocked_tasks,
-                    "completion_rate": round(completed_tasks / total_tasks * 100) if total_tasks else 0,
-                    "planned_minutes": planned_minutes, "actual_minutes": actual_minutes,
-                    "tasks": tasks,
-                })
+                users.append(
+                    {
+                        "id": member["id"],
+                        "email": member["email"],
+                        "created_at": member["created_at"],
+                        "nickname": member["nickname"],
+                        "learning_goal": member["learning_goal"],
+                        "plan_goal": plan_goal,
+                        "plan_status": plan_status,
+                        "total_tasks": total_tasks,
+                        "completed_tasks": completed_tasks,
+                        "in_progress_tasks": in_progress_tasks,
+                        "blocked_tasks": blocked_tasks,
+                        "completion_rate": (
+                            round(completed_tasks / total_tasks * 100)
+                            if total_tasks
+                            else 0
+                        ),
+                        "planned_minutes": planned_minutes,
+                        "actual_minutes": actual_minutes,
+                        "tasks": tasks,
+                    }
+                )
         return {
             "user_count": len(users),
-            "active_plan_count": sum(member["plan_status"] == "approved" for member in users),
+            "active_plan_count": sum(
+                member["plan_status"] == "approved" for member in users
+            ),
             "users": users,
         }
 
     @app.get("/api/progress/weeks/{week_no}")
-    def progress_week(week_no: int, user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    def progress_week(
+        week_no: int, user: dict[str, Any] = Depends(current_user)
+    ) -> dict[str, Any]:
         dashboard = progress_dashboard(user)
         for week in dashboard["weeks"]:
             if week["week_no"] == week_no:
@@ -1965,7 +2619,9 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
         raise HTTPException(status_code=404, detail="학습 주차를 찾을 수 없습니다.")
 
     @app.get("/api/tasks/{task_id}")
-    def get_task_progress(task_id: str, user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    def get_task_progress(
+        task_id: str, user: dict[str, Any] = Depends(current_user)
+    ) -> dict[str, Any]:
         with connect() as db:
             plan_row, plan = active_plan(db, user["id"])
             task, week_no = find_task(plan, task_id)
@@ -1981,14 +2637,18 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
                 (plan_row["id"], task_id, user["id"]),
             ).fetchall()
         return {
-            **task, "week_no": week_no, **progress,
+            **task,
+            "week_no": week_no,
+            **progress,
             "time_logs": [dict(row) for row in logs],
             "submissions": [dict(row) for row in submissions],
         }
 
     @app.patch("/api/tasks/{task_id}")
     def update_task_progress(
-        task_id: str, payload: TaskProgressInput, user: dict[str, Any] = Depends(current_user)
+        task_id: str,
+        payload: TaskProgressInput,
+        user: dict[str, Any] = Depends(current_user),
     ) -> dict[str, Any]:
         updates = payload.model_dump(exclude_unset=True)
         if "status" in updates and updates["status"] is None:
@@ -1997,13 +2657,20 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             try:
                 date.fromisoformat(updates["learning_start_date"])
             except ValueError as exc:
-                raise HTTPException(status_code=422, detail="학습 시작일을 확인해 주세요.") from exc
+                raise HTTPException(
+                    status_code=422, detail="학습 시작일을 확인해 주세요."
+                ) from exc
         with connect() as db:
             plan_row, plan = active_plan(db, user["id"])
             find_task(plan, task_id)
             old = task_progress_dict(db, plan_row["id"], task_id, user["id"])
-            if old["status"] == "completed" and updates.get("status") not in (None, "completed"):
-                raise HTTPException(status_code=409, detail="완료된 과제의 상태는 되돌릴 수 없습니다.")
+            if old["status"] == "completed" and updates.get("status") not in (
+                None,
+                "completed",
+            ):
+                raise HTTPException(
+                    status_code=409, detail="완료된 과제의 상태는 되돌릴 수 없습니다."
+                )
             status = updates.pop("status", old["status"])
             if status == "in_progress" and not old["learning_start_date"]:
                 updates.setdefault("learning_start_date", _utcnow().date().isoformat())
@@ -2012,9 +2679,13 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             elif status != "completed":
                 updates.setdefault("completed_at", None)
             values = {
-                "learning_start_date": updates.get("learning_start_date", old["learning_start_date"]),
+                "learning_start_date": updates.get(
+                    "learning_start_date", old["learning_start_date"]
+                ),
                 "learning_notes": updates.get("learning_notes", old["learning_notes"]),
-                "difficulty_notes": updates.get("difficulty_notes", old["difficulty_notes"]),
+                "difficulty_notes": updates.get(
+                    "difficulty_notes", old["difficulty_notes"]
+                ),
                 "learner_memo": updates.get("learner_memo", old["learner_memo"]),
                 "completed_at": updates.get("completed_at", old["completed_at"]),
             }
@@ -2022,18 +2693,38 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             db.execute(
                 "INSERT INTO task_progress(plan_id,task_id,user_id,status,learning_start_date,learning_notes,difficulty_notes,learner_memo,completed_at,updated_at) "
                 "VALUES(?,?,?,?,?,?,?,?,?,?) ON CONFLICT(plan_id,task_id) DO UPDATE SET "
-                "status=excluded.status,learning_start_date=excluded.learning_start_date,learning_notes=excluded.learning_notes," 
+                "status=excluded.status,learning_start_date=excluded.learning_start_date,learning_notes=excluded.learning_notes,"
                 "difficulty_notes=excluded.difficulty_notes,learner_memo=excluded.learner_memo,completed_at=excluded.completed_at,updated_at=excluded.updated_at",
-                (plan_row["id"], task_id, user["id"], status, values["learning_start_date"],
-                 values["learning_notes"], values["difficulty_notes"], values["learner_memo"], values["completed_at"], now),
+                (
+                    plan_row["id"],
+                    task_id,
+                    user["id"],
+                    status,
+                    values["learning_start_date"],
+                    values["learning_notes"],
+                    values["difficulty_notes"],
+                    values["learner_memo"],
+                    values["completed_at"],
+                    now,
+                ),
             )
             if status != old["status"]:
-                log_activity(db, plan_row["id"], task_id, user["id"], "status_changed", old["status"], status)
+                log_activity(
+                    db,
+                    plan_row["id"],
+                    task_id,
+                    user["id"],
+                    "status_changed",
+                    old["status"],
+                    status,
+                )
         return get_task_progress(task_id, user)
 
     @app.post("/api/tasks/{task_id}/time-logs", status_code=201)
     def add_learning_time(
-        task_id: str, payload: LearningTimeInput, user: dict[str, Any] = Depends(current_user)
+        task_id: str,
+        payload: LearningTimeInput,
+        user: dict[str, Any] = Depends(current_user),
     ) -> dict[str, Any]:
         with connect() as db:
             plan_row, plan = active_plan(db, user["id"])
@@ -2043,23 +2734,49 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             db.execute(
                 "INSERT INTO learning_time_logs(id,plan_id,task_id,user_id,learning_date,duration_minutes,notes,created_at) "
                 "VALUES(?,?,?,?,?,?,?,?)",
-                (log_id, plan_row["id"], task_id, user["id"], payload.learning_date,
-                 payload.duration_minutes, payload.notes.strip(), now),
+                (
+                    log_id,
+                    plan_row["id"],
+                    task_id,
+                    user["id"],
+                    payload.learning_date,
+                    payload.duration_minutes,
+                    payload.notes.strip(),
+                    now,
+                ),
             )
-            log_activity(db, plan_row["id"], task_id, user["id"], "time_logged", None, {
-                "learning_date": payload.learning_date, "duration_minutes": payload.duration_minutes,
-            })
-        return {"id": log_id, "learning_date": payload.learning_date,
-                "duration_minutes": payload.duration_minutes, "notes": payload.notes.strip(), "created_at": now}
+            log_activity(
+                db,
+                plan_row["id"],
+                task_id,
+                user["id"],
+                "time_logged",
+                None,
+                {
+                    "learning_date": payload.learning_date,
+                    "duration_minutes": payload.duration_minutes,
+                },
+            )
+        return {
+            "id": log_id,
+            "learning_date": payload.learning_date,
+            "duration_minutes": payload.duration_minutes,
+            "notes": payload.notes.strip(),
+            "created_at": now,
+        }
 
     @app.get("/api/tasks/{task_id}/time-logs")
-    def get_learning_time(task_id: str, user: dict[str, Any] = Depends(current_user)) -> list[dict[str, Any]]:
+    def get_learning_time(
+        task_id: str, user: dict[str, Any] = Depends(current_user)
+    ) -> list[dict[str, Any]]:
         detail = get_task_progress(task_id, user)
         return detail["time_logs"]
 
     @app.patch("/api/tasks/{task_id}/time-logs/{log_id}")
     def update_learning_time(
-        task_id: str, log_id: str, payload: LearningTimeInput,
+        task_id: str,
+        log_id: str,
+        payload: LearningTimeInput,
         user: dict[str, Any] = Depends(current_user),
     ) -> dict[str, Any]:
         with connect() as db:
@@ -2070,22 +2787,50 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
                 (log_id, plan_row["id"], task_id, user["id"]),
             ).fetchone()
             if row is None:
-                raise HTTPException(status_code=404, detail="학습시간 기록을 찾을 수 없습니다.")
-            old_value = {"learning_date": row["learning_date"], "duration_minutes": row["duration_minutes"], "notes": row["notes"]}
-            new_value = {"learning_date": payload.learning_date, "duration_minutes": payload.duration_minutes, "notes": payload.notes.strip()}
+                raise HTTPException(
+                    status_code=404, detail="학습시간 기록을 찾을 수 없습니다."
+                )
+            old_value = {
+                "learning_date": row["learning_date"],
+                "duration_minutes": row["duration_minutes"],
+                "notes": row["notes"],
+            }
+            new_value = {
+                "learning_date": payload.learning_date,
+                "duration_minutes": payload.duration_minutes,
+                "notes": payload.notes.strip(),
+            }
             db.execute(
                 "UPDATE learning_time_logs SET learning_date=?,duration_minutes=?,notes=? WHERE id=?",
-                (payload.learning_date, payload.duration_minutes, payload.notes.strip(), log_id),
+                (
+                    payload.learning_date,
+                    payload.duration_minutes,
+                    payload.notes.strip(),
+                    log_id,
+                ),
             )
-            log_activity(db, plan_row["id"], task_id, user["id"], "time_log_updated", old_value, new_value)
+            log_activity(
+                db,
+                plan_row["id"],
+                task_id,
+                user["id"],
+                "time_log_updated",
+                old_value,
+                new_value,
+            )
         return {"id": log_id, **new_value, "created_at": row["created_at"]}
 
     @app.post("/api/tasks/{task_id}/submissions", status_code=201)
     def submit_task(
-        task_id: str, payload: TaskSubmissionInput, user: dict[str, Any] = Depends(current_user)
+        task_id: str,
+        payload: TaskSubmissionInput,
+        user: dict[str, Any] = Depends(current_user),
     ) -> dict[str, Any]:
         if not payload.has_evidence():
-            raise HTTPException(status_code=422, detail="GitHub URL 또는 학습 결과 설명을 입력해 주세요.")
+            raise HTTPException(
+                status_code=422,
+                detail="GitHub URL 또는 학습 결과 설명을 입력해 주세요.",
+            )
         with connect() as db:
             plan_row, plan = active_plan(db, user["id"])
             find_task(plan, task_id)
@@ -2094,21 +2839,46 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             db.execute(
                 "INSERT INTO task_submissions(id,plan_id,task_id,user_id,github_url,explanation,status,submitted_at) "
                 "VALUES(?,?,?,?,?,?, 'submitted',?)",
-                (submission_id, plan_row["id"], task_id, user["id"], payload.github_url,
-                 payload.explanation, now),
+                (
+                    submission_id,
+                    plan_row["id"],
+                    task_id,
+                    user["id"],
+                    payload.github_url,
+                    payload.explanation,
+                    now,
+                ),
             )
-            log_activity(db, plan_row["id"], task_id, user["id"], "submission_created", None, {
-                "github_url": payload.github_url, "explanation": payload.explanation,
-            })
-        return {"id": submission_id, "github_url": payload.github_url,
-                "explanation": payload.explanation, "status": "submitted", "submitted_at": now}
+            log_activity(
+                db,
+                plan_row["id"],
+                task_id,
+                user["id"],
+                "submission_created",
+                None,
+                {
+                    "github_url": payload.github_url,
+                    "explanation": payload.explanation,
+                },
+            )
+        return {
+            "id": submission_id,
+            "github_url": payload.github_url,
+            "explanation": payload.explanation,
+            "status": "submitted",
+            "submitted_at": now,
+        }
 
     @app.post("/api/tasks/{task_id}/completion-request")
     def complete_task(
-        task_id: str, payload: CompletionRequestInput, user: dict[str, Any] = Depends(current_user)
+        task_id: str,
+        payload: CompletionRequestInput,
+        user: dict[str, Any] = Depends(current_user),
     ) -> dict[str, Any]:
         if not payload.completion_criteria_confirmed:
-            raise HTTPException(status_code=422, detail="완료 기준을 확인한 후 요청해 주세요.")
+            raise HTTPException(
+                status_code=422, detail="완료 기준을 확인한 후 요청해 주세요."
+            )
         with connect() as db:
             plan_row, plan = active_plan(db, user["id"])
             task, _ = find_task(plan, task_id)
@@ -2121,13 +2891,24 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
                     "status='completed',completed_at=excluded.completed_at,updated_at=excluded.updated_at",
                     (plan_row["id"], task_id, user["id"], now, now),
                 )
-                log_activity(db, plan_row["id"], task_id, user["id"], "task_completed", old["status"], {
-                    "status": "completed", "completion_criteria": task["completion_criteria"],
-                })
+                log_activity(
+                    db,
+                    plan_row["id"],
+                    task_id,
+                    user["id"],
+                    "task_completed",
+                    old["status"],
+                    {
+                        "status": "completed",
+                        "completion_criteria": task["completion_criteria"],
+                    },
+                )
         return get_task_progress(task_id, user)
 
     @app.get("/api/progress/activities")
-    def progress_activities(user: dict[str, Any] = Depends(current_user)) -> list[dict[str, Any]]:
+    def progress_activities(
+        user: dict[str, Any] = Depends(current_user),
+    ) -> list[dict[str, Any]]:
         with connect() as db:
             plan_row, plan = active_plan(db, user["id"])
             rows = db.execute(
@@ -2137,16 +2918,23 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             ).fetchall()
         task_index = {
             task["id"]: {"week_no": week["week_no"], "title": task["title"]}
-            for week in plan["weeks"] for task in week["tasks"]
+            for week in plan["weeks"]
+            for task in week["tasks"]
         }
-        return [{
-            **dict(row), **task_index.get(row["task_id"], {}),
-            "old_value": json.loads(row["old_value"]) if row["old_value"] else None,
-            "new_value": json.loads(row["new_value"]) if row["new_value"] else None,
-        } for row in rows]
+        return [
+            {
+                **dict(row),
+                **task_index.get(row["task_id"], {}),
+                "old_value": json.loads(row["old_value"]) if row["old_value"] else None,
+                "new_value": json.loads(row["new_value"]) if row["new_value"] else None,
+            }
+            for row in rows
+        ]
 
     @app.get("/api/progress/statistics")
-    def progress_statistics(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    def progress_statistics(
+        user: dict[str, Any] = Depends(current_user),
+    ) -> dict[str, Any]:
         dashboard = progress_dashboard(user)
         with connect() as db:
             completed_times = db.execute(
@@ -2155,13 +2943,20 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
                 "HAVING task_id IN (SELECT task_id FROM task_progress WHERE plan_id=? AND user_id=? AND status='completed'))",
                 (dashboard["plan_id"], user["id"], dashboard["plan_id"], user["id"]),
             ).fetchone()["average_minutes"]
-            learning_dates = [row["learning_date"] for row in db.execute(
-                "SELECT DISTINCT learning_date FROM learning_time_logs WHERE plan_id=? AND user_id=? ORDER BY learning_date DESC",
-                (dashboard["plan_id"], user["id"]),
-            ).fetchall()]
+            learning_dates = [
+                row["learning_date"]
+                for row in db.execute(
+                    "SELECT DISTINCT learning_date FROM learning_time_logs WHERE plan_id=? AND user_id=? ORDER BY learning_date DESC",
+                    (dashboard["plan_id"], user["id"]),
+                ).fetchall()
+            ]
         streak = 0
         today = _utcnow().date()
-        expected_day = today if learning_dates and learning_dates[0] == today.isoformat() else today - timedelta(days=1)
+        expected_day = (
+            today
+            if learning_dates and learning_dates[0] == today.isoformat()
+            else today - timedelta(days=1)
+        )
         for learning_date in learning_dates:
             day = date.fromisoformat(learning_date)
             if day == expected_day:
@@ -2172,17 +2967,27 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
         planned = dashboard["planned_minutes"]
         return {
             "completion_rate": dashboard["completion_rate"],
-            "learning_time_rate": round(dashboard["actual_minutes"] / planned * 100, 1) if planned else 0,
+            "learning_time_rate": (
+                round(dashboard["actual_minutes"] / planned * 100, 1) if planned else 0
+            ),
             "overdue_tasks": None,
             "overdue_tracking_available": False,
             "average_completed_task_minutes": round(completed_times or 0),
-            "submission_rate": round(dashboard["submitted_tasks"] / dashboard["submission_tasks"] * 100, 1)
-                if dashboard["submission_tasks"] else 0,
+            "submission_rate": (
+                round(
+                    dashboard["submitted_tasks"] / dashboard["submission_tasks"] * 100,
+                    1,
+                )
+                if dashboard["submission_tasks"]
+                else 0
+            ),
             "learning_streak_days": streak,
         }
 
     @app.post("/api/coach/progress-feedback")
-    def progress_feedback(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    def progress_feedback(
+        user: dict[str, Any] = Depends(current_user),
+    ) -> dict[str, Any]:
         dashboard = progress_dashboard(user)
         tasks = [task for week in dashboard["weeks"] for task in week["tasks"]]
         blocked = [task for task in tasks if task["status"] == "blocked"]
@@ -2193,21 +2998,34 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             actions = [f"{blocked[0]['title']}의 어려웠던 점과 필요한 도움을 기록하기"]
         elif active:
             summary = f"진행 중인 과제 {len(active)}개를 먼저 마무리해 학습 흐름을 유지해 보세요."
-            actions = [f"{active[0]['title']}의 완료 기준을 확인하고 남은 작업을 정리하기"]
+            actions = [
+                f"{active[0]['title']}의 완료 기준을 확인하고 남은 작업을 정리하기"
+            ]
         elif next_task:
             summary = "아직 시작하지 않은 과제 중 가장 앞선 과제부터 작은 단위로 시작해 보세요."
-            actions = [f"{next_task['title']} 시작하기", "완료 기준을 먼저 읽고 학습시간을 기록하기"]
+            actions = [
+                f"{next_task['title']} 시작하기",
+                "완료 기준을 먼저 읽고 학습시간을 기록하기",
+            ]
         else:
             summary = "현재 계획의 모든 과제를 완료했습니다. 학습 이력을 확인하고 다음 목표를 정해 보세요."
             actions = ["완료한 결과물과 학습 기록 돌아보기"]
         return {
-            "source": "record_based_rules", "summary": summary,
-            "actions": actions, "completion_rate": dashboard["completion_rate"],
-            "blocked_tasks": dashboard["blocked_tasks"], "generated_at": _utcnow().isoformat(),
+            "source": "record_based_rules",
+            "summary": summary,
+            "actions": actions,
+            "completion_rate": dashboard["completion_rate"],
+            "blocked_tasks": dashboard["blocked_tasks"],
+            "generated_at": _utcnow().isoformat(),
         }
 
     @app.get("/api/agent/history")
-    def agent_chat_history(user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    def agent_chat_history(
+        response: Response,
+        user: dict[str, Any] = Depends(current_user),
+    ) -> dict[str, Any]:
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["Vary"] = "Cookie"
         with connect() as db:
             rows = db.execute(
                 "SELECT id, role, content, sources_json, created_at "
@@ -2217,15 +3035,20 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
         return {
             "messages": [
                 {
-                    "id": row["id"], "role": row["role"], "content": row["content"],
-                    "sources": json.loads(row["sources_json"]), "created_at": row["created_at"],
+                    "id": row["id"],
+                    "role": row["role"],
+                    "content": row["content"],
+                    "sources": json.loads(row["sources_json"]),
+                    "created_at": row["created_at"],
                 }
                 for row in rows
             ]
         }
 
     @app.post("/api/agent/chat")
-    def agent_chat(payload: AgentChatInput, user: dict[str, Any] = Depends(current_user)) -> dict[str, Any]:
+    def agent_chat(
+        payload: AgentChatInput, user: dict[str, Any] = Depends(current_user)
+    ) -> dict[str, Any]:
         client = create_ai_client()
         if not client:
             raise HTTPException(
@@ -2252,9 +3075,16 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             except HTTPException as exc:
                 return {"error": str(exc.detail)}
             return {
-                key: dashboard[key] for key in (
-                    "goal", "total_tasks", "completed_tasks", "completion_rate",
-                    "planned_minutes", "actual_minutes", "in_progress_tasks", "blocked_tasks",
+                key: dashboard[key]
+                for key in (
+                    "goal",
+                    "total_tasks",
+                    "completed_tasks",
+                    "completion_rate",
+                    "planned_minutes",
+                    "actual_minutes",
+                    "in_progress_tasks",
+                    "blocked_tasks",
                 )
             }
 
@@ -2266,12 +3096,15 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             requested_status = arguments.get("status")
             tasks = [
                 {
-                    "week_no": week["week_no"], "id": task["id"],
-                    "title": task["title"], "status": task["status"],
+                    "week_no": week["week_no"],
+                    "id": task["id"],
+                    "title": task["title"],
+                    "status": task["status"],
                     "planned_minutes": task["planned_minutes"],
                     "actual_minutes": task["actual_minutes"],
                 }
-                for week in dashboard["weeks"] for task in week["tasks"]
+                for week in dashboard["weeks"]
+                for task in week["tasks"]
                 if requested_status is None or task["status"] == requested_status
             ]
             return {"tasks": tasks[:40], "task_count": len(tasks)}
@@ -2300,10 +3133,15 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             )
         except OpenAIError as exc:
             logger.exception("AI learning agent request failed")
-            raise HTTPException(status_code=502, detail="AI 코치 응답에 실패했습니다. 잠시 후 다시 시도해 주세요.") from exc
+            raise HTTPException(
+                status_code=502,
+                detail="AI 코치 응답에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+            ) from exc
         except ValueError as exc:
             logger.exception("AI learning agent response was invalid")
-            raise HTTPException(status_code=502, detail="AI 코치 응답을 확인하지 못했습니다.") from exc
+            raise HTTPException(
+                status_code=502, detail="AI 코치 응답을 확인하지 못했습니다."
+            ) from exc
         valid_source_ids = set(retrieved_sources)
         result["reply"] = re.sub(
             r"\[([A-Za-z0-9_-]+)\]",
@@ -2321,7 +3159,13 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             db.execute(
                 "INSERT INTO agent_chat_messages(user_id,role,content,sources_json,created_at) "
                 "VALUES(?,?,?,?,?)",
-                (user["id"], "assistant", result["reply"], json.dumps(sources, ensure_ascii=False), created_at),
+                (
+                    user["id"],
+                    "assistant",
+                    result["reply"],
+                    json.dumps(sources, ensure_ascii=False),
+                    created_at,
+                ),
             )
         return {**result, "sources": sources}
         sources = list(retrieved_sources.values())
@@ -2335,26 +3179,42 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
             db.execute(
                 "INSERT INTO agent_chat_messages(user_id,role,content,sources_json,created_at) "
                 "VALUES(?,?,?,?,?)",
-                (user["id"], "assistant", result["reply"], json.dumps(sources, ensure_ascii=False), created_at),
+                (
+                    user["id"],
+                    "assistant",
+                    result["reply"],
+                    json.dumps(sources, ensure_ascii=False),
+                    created_at,
+                ),
             )
         return {**result, "sources": sources}
 
     @app.post("/api/plans/{plan_id}/revision-request", status_code=201)
     def request_plan_revision(
-        plan_id: str, payload: PlanRevisionRequestInput, user: dict[str, Any] = Depends(current_user)
+        plan_id: str,
+        payload: PlanRevisionRequestInput,
+        user: dict[str, Any] = Depends(current_user),
     ) -> dict[str, Any]:
         with connect() as db:
             row = owned_plan(db, plan_id, user["id"])
             if row["status"] != "approved":
-                raise HTTPException(status_code=409, detail="승인된 학습계획만 재계획을 요청할 수 있습니다.")
+                raise HTTPException(
+                    status_code=409,
+                    detail="승인된 학습계획만 재계획을 요청할 수 있습니다.",
+                )
             request_id = str(uuid4())
             now = _utcnow().isoformat()
             db.execute(
                 "INSERT INTO plan_revision_requests(id,plan_id,user_id,reason,created_at) VALUES(?,?,?,?,?)",
                 (request_id, plan_id, user["id"], payload.reason, now),
             )
-        return {"id": request_id, "plan_id": plan_id, "reason": payload.reason,
-                "status": "requested", "created_at": now}
+        return {
+            "id": request_id,
+            "plan_id": plan_id,
+            "reason": payload.reason,
+            "status": "requested",
+            "created_at": now,
+        }
 
     app.mount("/static", StaticFiles(directory=FRONTEND), name="static")
 
