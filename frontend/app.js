@@ -1065,7 +1065,6 @@ function renderAgentChat() {
       const response = await api("/api/agent/chat", {
         method: "POST",
         body: JSON.stringify({ message }),
-        body: JSON.stringify({ message }),
       });
       if (!isAgentSessionCurrent(sessionVersion, userId)) return;
       state.agentHistory.push({ role: "assistant", content: response.reply, sources: response.sources });

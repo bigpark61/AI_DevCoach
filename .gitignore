@@ -6,6 +6,7 @@ data/
 .env.*
 !.env.example
 .pytest_cache/
+.ruff_cache/
 .neon
 node_modules/
 .vercel/

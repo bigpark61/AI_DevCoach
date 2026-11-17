@@ -1,8 +1,7 @@
 """Persist AI coach conversation history."""
 
-from alembic import op
 import sqlalchemy as sa
-
+from alembic import op
 
 revision = "0004_agent_chat_history"
 down_revision = "0003_password_reset_tokens"
@@ -19,7 +18,9 @@ def upgrade() -> None:
         sa.Column("content", sa.Text(), nullable=False),
         sa.Column("sources_json", sa.Text(), server_default="[]", nullable=False),
         sa.Column("created_at", sa.Text(), nullable=False),
-        sa.CheckConstraint("role IN ('user', 'assistant')", name="ck_agent_chat_messages_role"),
+        sa.CheckConstraint(
+            "role IN ('user', 'assistant')", name="ck_agent_chat_messages_role"
+        ),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
     )
