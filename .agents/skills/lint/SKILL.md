@@ -8,7 +8,7 @@ description: AI DevCoach의 lint 오류 수정 및 Python·JavaScript·TypeScrip
 ## 구현 전
 
 - 저장소 루트의 AGENTS.md와 하위 지침, git status, pyproject.toml, eslint.config.mjs, requirements-dev.txt, package.json을 확인한다.
-- Python 3.12 이상과 Node.js 24 이상을 사용한다. Python 개발 도구는 requirements-dev.txt, JavaScript 도구는 package-lock.json의 버전을 따른다.
+- Python 3.12 이상, 3.14 미만과 Node.js 24 이상을 사용한다. Python 개발 도구는 requirements-dev.txt, JavaScript 도구는 package-lock.json의 버전을 따른다.
 - `.venv`의 Python으로 `scripts/check_quality.py --test`를 실행하여 수정 전 결과와 종료 코드를 기록한다. 도구가 없으면 미실행으로 보고하고 설치 방법을 안내한다. 검사를 건너뛴 결과를 통과로 보고하지 않는다.
 - 검사 대상은 저장소의 Python 코드, JavaScript 및 TypeScript 코드다. HTML/CSS lint, TypeScript 타입 검사, 운영 환경 검증은 별도 작업이다.
 
