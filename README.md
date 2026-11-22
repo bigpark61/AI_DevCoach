@@ -12,6 +12,26 @@ The previous 29/30 result is retained in the dated historical record. See the
 
 - Vercel: https://ai-dev-coach.vercel.app
 
+## Artseller intro
+
+The landing page is rendered as an Artseller-style interactive intro before the
+login or signup screen. It is loaded from `artseller-design.html` through the
+`/api/artseller-intro` endpoint and mounted by `frontend/app.js`, so the large
+HTML design is kept as a separate source file instead of being duplicated in
+the JavaScript bundle.
+
+The intro is shown when a visitor opens the app and again after logout. The
+existing app shell is hidden while the intro is active, preventing the shell
+from adding an empty section to the page or extending the scrollbar. Selecting
+the learning or signup action closes the intro and opens the appropriate auth
+view; the skip action opens the login view. If the intro cannot be loaded, the
+application falls back to the basic intro screen.
+
+The replay button is available on the rendered intro, and the intro's inline
+animation scripts are executed after the markup is mounted. The design source
+is served by the backend, while the browser-side lifecycle and cleanup remain
+in `frontend/app.js`.
+
 ## Run locally
 
 Requires Python 3.12 or newer.
@@ -182,6 +202,27 @@ AI DevCoach는 계정 등록, 학습자 프로필, 역량 평가, 개인화 학�
 ## 운영 중인 배포 주소
 
 - Vercel: https://ai-dev-coach.vercel.app
+
+
+## Artseller 인트로
+
+로그인·회원가입 화면보다 먼저 Artseller 스타일의 인터랙티브 인트로를
+표시합니다. 인트로 원본은 `artseller-design.html`에 보관하며, 백엔드의
+`/api/artseller-intro` 엔드포인트를 통해 내려받은 뒤 `frontend/app.js`가
+브라우저에서 렌더링합니다. 따라서 대용량 HTML 디자인을 JavaScript에
+중복해서 넣지 않습니다.
+
+방문자가 앱을 처음 열 때뿐 아니라 로그아웃한 뒤에도 인트로가 다시
+표시됩니다. 인트로가 활성화된 동안에는 기존 앱 셸을 숨겨 빈 영역이
+생기거나 스크롤바 높이가 불필요하게 길어지지 않도록 합니다. 학습 시작
+또는 회원가입 동작을 선택하면 인트로가 닫히고 해당 인증 화면이 열리며,
+건너뛰기 동작은 로그인 화면을 엽니다. 인트로를 불러오지 못하면 기존
+기본 인트로 화면으로 대체됩니다.
+
+렌더링된 인트로에는 다시 보기 버튼이 제공되며, 마크업을 삽입한 뒤
+인트로에 포함된 인라인 애니메이션 스크립트도 실행됩니다. 디자인 원본은
+백엔드가 제공하고, 브라우저에서의 표시·종료·정리 과정은
+`frontend/app.js`가 담당합니다.
 
 
 ## 로컬 환경에서 실행하기
