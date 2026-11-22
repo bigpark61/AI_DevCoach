@@ -1152,6 +1152,9 @@ async function renderArtsellerIntro() {
       new Function(script.textContent)();
     });
 
+    const replayButton = document.querySelector("#replayButton");
+    if (replayButton) replayButton.textContent = "↻ Replay Intro";
+
     document.querySelector(".start-learning-button")?.addEventListener("click", (event) => {
       event.preventDefault();
       closeArtsellerIntro("signup");
