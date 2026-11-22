@@ -1121,7 +1121,9 @@ function closeArtsellerIntro(mode = "signup") {
   artsellerElements = [];
   artsellerStyle?.remove();
   artsellerStyle = null;
-  document.querySelector("#app")?.removeAttribute("hidden");
+  const appShell = document.querySelector("#app");
+  appShell?.removeAttribute("hidden");
+  appShell?.style.removeProperty("display");
   document.documentElement.classList.remove("intro-locked");
   document.body.classList.remove("intro-locked");
   renderAuth(mode);
@@ -1140,7 +1142,9 @@ async function renderArtsellerIntro() {
     const sourceStyle = documentFragment.querySelector("style");
     if (!introMain || !introOverlay || !sourceStyle) throw new Error("Intro markup is incomplete");
 
-    document.querySelector("#app")?.setAttribute("hidden", "");
+    const appShell = document.querySelector("#app");
+    appShell?.setAttribute("hidden", "");
+    appShell?.style.setProperty("display", "none", "important");
     artsellerStyle = document.createElement("style");
     artsellerStyle.id = "artseller-intro-style";
     artsellerStyle.textContent = sourceStyle.textContent;
@@ -1170,7 +1174,9 @@ async function renderArtsellerIntro() {
     });
   } catch (error) {
     console.error("Unable to render artseller intro", error);
-    document.querySelector("#app")?.removeAttribute("hidden");
+    const appShell = document.querySelector("#app");
+    appShell?.removeAttribute("hidden");
+    appShell?.style.removeProperty("display");
     renderBasicIntro();
   }
 }
