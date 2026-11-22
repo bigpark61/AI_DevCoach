@@ -253,7 +253,7 @@ async function logout() {
   state.progressStats = null;
   state.activityRows = [];
   state.coachFeedback = null;
-  renderAuth("login");
+  renderArtsellerIntro();
 }
 
 function renderProfile(profile = null, editable = false) {
@@ -1086,7 +1086,7 @@ function renderAgentChat() {
   });
 }
 
-function renderIntro() {
+function renderBasicIntro() {
   setHeader(`<button class="account-link" id="intro-login">로그인</button>`);
   main.innerHTML = `
     <section class="narrow intro-page">
@@ -1113,13 +1113,69 @@ function renderIntro() {
   document.querySelector("#intro-login-action").addEventListener("click", () => renderAuth("login"));
 }
 
+let artsellerStyle = null;
+let artsellerElements = [];
+
+function closeArtsellerIntro(mode = "signup") {
+  artsellerElements.forEach((element) => element.remove());
+  artsellerElements = [];
+  artsellerStyle?.remove();
+  artsellerStyle = null;
+  document.documentElement.classList.remove("intro-locked");
+  document.body.classList.remove("intro-locked");
+  renderAuth(mode);
+}
+
+async function renderArtsellerIntro() {
+  setHeader("");
+  main.innerHTML = `<div class="loading"><div><div class="spinner"></div><p>인트로를 준비하고 있어요</p></div></div>`;
+  try {
+    const response = await fetch("/api/artseller-intro", { credentials: "same-origin" });
+    if (!response.ok) throw new Error(`Intro request failed: ${response.status}`);
+    const source = await response.text();
+    const documentFragment = new DOMParser().parseFromString(source, "text/html");
+    const introMain = documentFragment.querySelector("#mainContent");
+    const introOverlay = documentFragment.querySelector("#intro");
+    const sourceStyle = documentFragment.querySelector("style");
+    if (!introMain || !introOverlay || !sourceStyle) throw new Error("Intro markup is incomplete");
+
+    artsellerStyle = document.createElement("style");
+    artsellerStyle.id = "artseller-intro-style";
+    artsellerStyle.textContent = sourceStyle.textContent;
+    document.head.append(artsellerStyle);
+    document.body.append(introMain, introOverlay);
+    artsellerElements = [introMain, introOverlay];
+    document.documentElement.classList.add("intro-locked");
+    document.body.classList.add("intro-locked");
+
+    documentFragment.querySelectorAll("script").forEach((script) => {
+      new Function(script.textContent)();
+    });
+
+    document.querySelector(".start-learning-button")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      closeArtsellerIntro("signup");
+    });
+    document.querySelector(".signup-action")?.addEventListener("click", (event) => {
+      event.preventDefault();
+      closeArtsellerIntro("signup");
+    });
+    document.querySelector("#skipButton")?.addEventListener("click", () => {
+      window.setTimeout(() => closeArtsellerIntro("login"), 650);
+    });
+  } catch (error) {
+    console.error("Unable to render artseller intro", error);
+    renderBasicIntro();
+  }
+}
+
 async function bootstrap() {
   const resetToken = new URLSearchParams(window.location.hash.slice(1)).get("reset_token");
   if (resetToken) {
     window.history.replaceState({}, "", window.location.pathname + window.location.search);
     return renderPasswordReset(resetToken);
   }
-  return renderIntro();
+  return renderArtsellerIntro();
 }
 
 bootstrap();

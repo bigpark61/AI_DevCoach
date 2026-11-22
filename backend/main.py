@@ -3222,6 +3222,10 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
     def home() -> FileResponse:
         return FileResponse(FRONTEND / "index.html")
 
+    @app.get("/api/artseller-intro", include_in_schema=False)
+    def artseller_intro() -> FileResponse:
+        return FileResponse(ROOT / "artseller-design.html", media_type="text/html")
+
     return app
 
 
