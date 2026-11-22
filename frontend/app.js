@@ -1086,13 +1086,40 @@ function renderAgentChat() {
   });
 }
 
+function renderIntro() {
+  setHeader(`<button class="account-link" id="intro-login">로그인</button>`);
+  main.innerHTML = `
+    <section class="narrow intro-page">
+      <div class="center">
+        <div class="eyebrow">나만의 AI 개발 학습 코치</div>
+        <h1>개발 공부, 이제 나에게 맞게 시작해요</h1>
+        <p class="subtitle">현재 역량을 진단하고, 목표에 맞는 학습 경로를 함께 만들어 보세요.</p>
+      </div>
+      <div class="card intro-card">
+        <div class="stats">
+          <div class="stat"><strong>진단</strong><span>현재 역량 확인</span></div>
+          <div class="stat"><strong>계획</strong><span>맞춤 학습 경로</span></div>
+          <div class="stat"><strong>코칭</strong><span>학습 과정 지원</span></div>
+        </div>
+        <div class="notice">회원가입 후 프로필을 작성하면 AI 개발 역량 진단을 시작할 수 있습니다.</div>
+        <div class="btn-row">
+          <button class="btn" id="intro-signup">무료로 시작하기 <span aria-hidden="true">→</span></button>
+          <button class="btn secondary" id="intro-login-action">이미 계정이 있어요</button>
+        </div>
+      </div>
+    </section>`;
+  document.querySelector("#intro-login").addEventListener("click", () => renderAuth("login"));
+  document.querySelector("#intro-signup").addEventListener("click", () => renderAuth("signup"));
+  document.querySelector("#intro-login-action").addEventListener("click", () => renderAuth("login"));
+}
+
 async function bootstrap() {
   const resetToken = new URLSearchParams(window.location.hash.slice(1)).get("reset_token");
   if (resetToken) {
     window.history.replaceState({}, "", window.location.pathname + window.location.search);
     return renderPasswordReset(resetToken);
   }
-  return renderAuth("login");
+  return renderIntro();
 }
 
 bootstrap();
