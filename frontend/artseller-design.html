@@ -268,6 +268,46 @@ button:focus-visible,a:focus-visible{outline:2px solid #d7bd92;outline-offset:5p
  .explore-section h2{font-size:clamp(27px,7vw,40px)}
 }
 
+/* Carry the app's blue accent into the intro's stars and entry actions. */
+.hero-copy::before{background:radial-gradient(ellipse,rgba(45,108,223,.2),rgba(82,151,245,.07) 45%,transparent 72%)}
+.hero-fireflies i:nth-child(-n+17),.hero-fireflies i:nth-child(23){background:#a8d5ff;box-shadow:0 0 6px rgba(111,185,255,.95),0 0 17px rgba(45,108,223,.65)}
+.hero-fireflies i:nth-child(-n+17)::after,.hero-fireflies i:nth-child(23)::after{background:radial-gradient(circle,#edf7ff 0%,rgba(98,176,255,.9) 22%,transparent 68%)}
+@keyframes silver-firefly-twinkle{0%,100%{opacity:.15;transform:scale(.65);filter:drop-shadow(0 0 2px #2d6cdf)}38%{opacity:1;transform:scale(1.5);filter:drop-shadow(0 0 7px #78beff)}65%{opacity:.3;transform:scale(.8);filter:drop-shadow(0 0 2px #4b92ee)}}
+.binary-title::before{filter:drop-shadow(0 0 4px #559eff)}
+.binary-title::after{filter:drop-shadow(0 0 5px #82c4ff)}
+@keyframes title-silver-glow{0%,100%{filter:drop-shadow(0 0 4px rgba(45,108,223,.3))}40%{filter:drop-shadow(0 0 13px rgba(100,176,255,.75))}70%{filter:drop-shadow(0 0 6px rgba(65,139,242,.4))}}
+.start-learning-button{border-color:#629ded;background:rgba(45,108,223,.2);color:#d9ecff;box-shadow:0 0 20px rgba(45,108,223,.12)}
+.start-learning-button:hover{background:rgba(45,108,223,.38);border-color:#a3d0ff}
+.start-learning-button:focus-visible,.signup-action:focus-visible{outline-color:#a3d0ff}
+.signup-action{background:#2d6cdf;color:#fff;box-shadow:0 0 20px rgba(45,108,223,.2)}
+.signup-action:hover{background:#3679ee}
+.signup-panel{background:linear-gradient(105deg,rgba(45,108,223,.17),rgba(45,108,223,.055));border-color:rgba(98,157,237,.4)}
+.learning-steps>div{position:relative;isolation:isolate;overflow:hidden;border-color:rgba(98,157,237,.35);background:linear-gradient(135deg,rgba(45,108,223,.14),rgba(45,108,223,.035));box-shadow:inset 0 0 22px rgba(45,108,223,.05)}
+.learning-steps span{color:#85baff}
+.learning-steps strong{color:#e2efff}
+.learning-steps>div::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(ellipse at 15% 5%,rgba(73,148,255,.22),transparent 65%);opacity:.35}
+.learning-steps>div::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 82% 22%,#eaf6ff 0 1px,rgba(104,182,255,.45) 2px,transparent 5px),radial-gradient(circle at 92% 65%,#94caff 0 .8px,transparent 3px),radial-gradient(circle at 66% 85%,#c4e5ff 0 1px,transparent 4px);filter:drop-shadow(0 0 4px #4b9bff);opacity:.2}
+.main--active .learning-steps>div::before{animation:step-blue-glow 5s ease-in-out infinite}
+.main--active .learning-steps>div::after{animation:step-blue-sparkle 3.7s ease-in-out infinite}
+.learning-steps>div:nth-child(2){--step-delay:-1.6s}
+.learning-steps>div:nth-child(3){--step-delay:-3.2s}
+.main--active .learning-steps>div::before,.main--active .learning-steps>div::after{animation-delay:var(--step-delay,0s)}
+@keyframes step-blue-glow{0%,100%{opacity:.3}50%{opacity:.85}}
+@keyframes step-blue-sparkle{0%,100%{opacity:.15}35%{opacity:.9}65%{opacity:.3}80%{opacity:.65}}
+@media(prefers-reduced-motion:reduce){.main--active .learning-steps>div::before,.main--active .learning-steps>div::after{animation:none;opacity:.4}}
+.learning-guide{position:relative;isolation:isolate;width:min(820px,100%);margin:20px auto 12px;padding:28px clamp(18px,4vw,36px);text-align:center;border-top:1px solid rgba(98,157,237,.25);border-bottom:1px solid rgba(98,157,237,.15);background:radial-gradient(ellipse at 10% 0,rgba(45,108,223,.12),transparent 75%)}
+.learning-guide h3{margin:0 0 12px;color:#b5d7ff;font-size:17px;font-weight:600;letter-spacing:-.03em}
+.learning-guide::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 93% 22%,#d7eeff 0 1px,transparent 4px),radial-gradient(circle at 84% 78%,#85baff 0 .8px,transparent 3px);opacity:.3}
+.main--active .learning-guide::after{animation:step-blue-sparkle 4.8s ease-in-out infinite}
+@media(max-width:760px){.learning-guide br{display:none}}
+@media(prefers-reduced-motion:reduce){.main--active .learning-guide::after{animation:none}}
+.signup-panel{flex-direction:column;align-items:center;justify-content:center;gap:20px;width:min(820px,100%);padding:32px 24px 36px;margin:0;background:radial-gradient(ellipse at 50% 0,rgba(45,108,223,.1),transparent 80%);border:0;border-top:1px solid rgba(98,157,237,.25);border-bottom:1px solid rgba(98,157,237,.15);border-radius:0;text-align:center}
+.signup-panel strong{display:block;color:#e2efff}
+.signup-panel p{margin:8px 0 0!important;max-width:420px;word-break:keep-all}
+.signup-action{min-width:240px;padding:15px 30px;border-radius:5px}
+@media(max-width:760px){.signup-panel{align-items:center;padding:28px 16px 32px}.signup-action{width:auto;max-width:100%;min-width:min(240px,100%)}}
+.learning-guide,.signup-panel{border:2px solid rgba(88,153,245,.6);box-shadow:0 0 18px rgba(45,108,223,.16),inset 0 0 22px rgba(45,108,223,.08);border-radius:4px}
+.main-content{overflow-x:clip}
 </style>
 </head>
 <body class="intro-locked">
@@ -388,16 +428,13 @@ button:focus-visible,a:focus-visible{outline:2px solid #d7bd92;outline-offset:5p
           </span>
         </h2>
         <p>AI DevCoach는 학습 목표와 수준을 바탕으로<br>나만의 학습 경로를 설계하는 학습 플랫폼입니다.</p>
-        <div class="learning-steps" aria-label="학습 시작 단계">
-          <div><span>01</span><strong>계정 만들기</strong><small>학습 기록을 관리할 준비</small></div>
-          <div><span>02</span><strong>학습 프로필 설정</strong><small>목표와 현재 실력 확인</small></div>
-          <div><span>03</span><strong>맞춤형 학습 시작</strong><small>개인화된 계획으로 학습</small></div>
+        <div class="learning-guide">
+          <p>계정을 만든 뒤, 학습 프로필에서 목표와 현재 실력을 알려주세요.<br>나에게 맞는 학습 계획을 세우고, 학습 기록을 쌓으며 배움을 이어갈 수 있어요.</p>
         </div>
         <div class="signup-panel">
           <div><strong>처음 방문하셨나요?</strong><p>회원가입 후 학습 프로필을 만들고 시작해 보세요.</p></div>
-          <a class="signup-action" href="https://ai-dev-coach.vercel.app/" target="_blank" rel="noopener noreferrer">AI DevCoach에서 회원가입·로그인 <span aria-hidden="true">↗</span></a>
+          <a class="signup-action" href="https://ai-dev-coach.vercel.app/" target="_blank" rel="noopener noreferrer">회원가입 · 로그인 <span aria-hidden="true">↗</span></a>
         </div>
-        <p class="demo-note">이 화면은 시연본입니다. 회원가입·로그인은 실제 AI DevCoach 사이트에서 진행됩니다.</p>
         <div class="scroll-guide" aria-hidden="true">↑ &nbsp; 위로 스크롤하면 0과 1이 AI DevCoach 글자로 모입니다</div>
       </section>
       <footer class="main-footer"><span>AI DevCoach · LEARNING EXPERIENCE</span><span>0 1 0 1 0 1 0 1</span></footer>
