@@ -124,9 +124,26 @@ button:focus-visible,a:focus-visible{outline:2px solid #d7bd92;outline-offset:5p
 .brand-title-fallback em{color:#e2bf8b!important;margin-left:.12em}
 .binary-title.is-animating #brandCanvas{opacity:1}
 .binary-title.is-animating .brand-title-fallback{opacity:0}
+.binary-title::before,.binary-title::after{content:"";position:absolute;inset:-24px -10px;pointer-events:none;z-index:3;background-repeat:repeat;opacity:.4}
+.binary-title::before{background-image:radial-gradient(circle at 12px 19px,#fff 0 1px,rgba(205,229,255,.4) 1.5px,transparent 4px),radial-gradient(circle at 63px 76px,#e3efff 0 .8px,transparent 2px),radial-gradient(circle at 108px 37px,#f5f8ff 0 .7px,transparent 2px);background-size:137px 101px;filter:drop-shadow(0 0 3px #c7ddff)}
+.binary-title::after{background-image:radial-gradient(circle at 37px 49px,#fff 0 1.1px,rgba(207,230,255,.35) 2px,transparent 5px),radial-gradient(circle at 102px 13px,#dceaff 0 .75px,transparent 2px);background-size:163px 89px;filter:drop-shadow(0 0 4px #d6e7ff)}
+.main--active .binary-title::before{animation:title-starlight 3.6s ease-in-out infinite}
+.main--active .binary-title::after{animation:title-starlight 2.7s ease-in-out -1.3s infinite reverse}
+.main--active #brandCanvas,.main--active .brand-title-fallback{animation:title-silver-glow 3.6s ease-in-out infinite}
+@keyframes title-starlight{0%,100%{opacity:.2}40%{opacity:.95}70%{opacity:.4}}
+@keyframes title-silver-glow{0%,100%{filter:drop-shadow(0 0 3px rgba(196,219,255,.18))}40%{filter:drop-shadow(0 0 11px rgba(211,230,255,.65))}70%{filter:drop-shadow(0 0 5px rgba(196,219,255,.3))}}
+@media(prefers-reduced-motion:reduce){.main--active .binary-title::before,.main--active .binary-title::after,.main--active #brandCanvas,.main--active .brand-title-fallback{animation:none}}
 .explore-section{min-height:72vh;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;border-top:1px solid var(--border);padding:clamp(70px,12vh,160px) 16px;gap:20px}
 .explore-kicker{color:#d1b48c;letter-spacing:.24em;font-size:10px;font-weight:700;margin:0}
 .explore-section h2{font-size:clamp(30px,4vw,64px);line-height:1.4;letter-spacing:-.055em;font-weight:650;margin:0}
+.explore-section .glitter-heading{position:relative;isolation:isolate}
+.heading-glitter{position:absolute;inset:-20px -12px;pointer-events:none;z-index:-1}
+.heading-glitter i{position:absolute;left:var(--x);top:var(--y);width:3px;height:3px;border-radius:50%;background:#e5efff;box-shadow:0 0 5px #cbdfff;opacity:.15}
+.heading-glitter i:nth-child(even){background:#f5dfb7;box-shadow:0 0 5px #d9bd88}
+.heading-glitter i::after{content:"";position:absolute;inset:-4px;background:linear-gradient(transparent 43%,rgba(242,247,255,.8) 50%,transparent 57%),linear-gradient(90deg,transparent 43%,rgba(242,247,255,.8) 50%,transparent 57%);opacity:.5}
+.main--active .heading-glitter i{animation:heading-glitter-twinkle var(--speed,3.7s) ease-in-out var(--delay,0s) infinite}
+@keyframes heading-glitter-twinkle{0%,25%,75%,100%{opacity:.1;transform:scale(.6)}45%{opacity:.95;transform:scale(1.15)}58%{opacity:.3;transform:scale(.8)}}
+@media(prefers-reduced-motion:reduce){.main--active .heading-glitter i{animation:none;opacity:.35}}
 .explore-section p:not(.explore-kicker){font-size:clamp(12px,1.3vw,15px);line-height:1.95;color:#aab4c4;margin:0}
 .explore-line{width:min(250px,50vw);display:flex;gap:16px;align-items:center;color:#b5a890;font-size:11px;letter-spacing:.15em;margin-bottom:20px}
 .explore-line i{height:1px;background:linear-gradient(90deg,transparent,#d2b789,transparent);flex:1}
@@ -172,11 +189,39 @@ button:focus-visible,a:focus-visible{outline:2px solid #d7bd92;outline-offset:5p
 .main--active .hero-portrait::before{animation:portrait-ambient-breathe 6s ease-in-out infinite}
 @keyframes portrait-ambient-breathe{0%,100%{opacity:.65;transform:scale(.98)}50%{opacity:1;transform:scale(1.04)}}
 @media(prefers-reduced-motion:reduce){.main--active .hero-portrait::before{animation:none;opacity:.8;transform:none}}
-.portrait-dust{position:absolute;inset:-8px -16px 0;z-index:3;overflow:hidden;pointer-events:none}
-.portrait-dust i{position:absolute;left:var(--x);top:var(--y);width:2px;height:2px;border-radius:50%;background:#e8d2a3;box-shadow:0 0 4px rgba(236,207,146,.45);opacity:0}
+.portrait-dust{position:absolute;inset:-24px -20px 0;z-index:3;overflow:hidden;pointer-events:none}
+.portrait-dust i{position:absolute;left:var(--x);top:var(--y);width:3px;height:3px;border-radius:50%;background:#ffe5a6;box-shadow:0 0 5px rgba(255,221,146,.9),0 0 11px rgba(230,179,78,.5);opacity:0}
+.portrait-dust i:nth-child(3n){width:2px;height:2px}
+.hero{position:relative;isolation:isolate}
+.hero::before,.hero::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background-repeat:repeat;opacity:.35;mask-image:linear-gradient(transparent,black 8%,black 92%,transparent)}
+.hero::before{background-image:radial-gradient(circle at 13px 28px,#dfeaff 0 .7px,transparent 1.5px),radial-gradient(circle at 72px 91px,#fff2ce 0 .65px,transparent 1.4px),radial-gradient(circle at 142px 37px,#cadcff 0 1px,transparent 2px),radial-gradient(circle at 211px 156px,#e6efff 0 .6px,transparent 1.4px),radial-gradient(circle at 38px 192px,#f7f4e8 0 .8px,transparent 1.7px),radial-gradient(circle at 176px 213px,#bccfea 0 .55px,transparent 1.2px);background-size:263px 241px;filter:drop-shadow(0 0 2px rgba(198,218,255,.5))}
+.hero::after{background-image:radial-gradient(circle at 49px 61px,#fff 0 1px,rgba(205,225,255,.3) 1.5px,transparent 4px),radial-gradient(circle at 193px 119px,#e7efff 0 .75px,transparent 2px),radial-gradient(circle at 111px 218px,#f8e3b6 0 .8px,transparent 2px),radial-gradient(circle at 283px 269px,#d8e6ff 0 .6px,transparent 1.5px);background-size:317px 293px}
+.main--active .hero::before{animation:starfield-shimmer 4.7s ease-in-out infinite}
+.main--active .hero::after{animation:starfield-shimmer 3.3s ease-in-out -1.7s infinite reverse}
+@keyframes starfield-shimmer{0%,100%{opacity:.22}35%{opacity:.65}65%{opacity:.35}82%{opacity:.8}}
+.explore-section{position:relative;isolation:isolate}
+.explore-section::before{content:"";position:absolute;top:-90px;left:0;right:0;height:clamp(460px,58vh,650px);z-index:-1;pointer-events:none;background-image:radial-gradient(circle at 24px 31px,#d9e8ff 0 .7px,transparent 1.6px),radial-gradient(circle at 119px 94px,#f6e5c2 0 .6px,transparent 1.5px),radial-gradient(circle at 203px 42px,#e6efff 0 .9px,transparent 2px),radial-gradient(circle at 78px 166px,#c9dcfa 0 .65px,transparent 1.5px),radial-gradient(circle at 249px 203px,#eff5ff 0 .75px,transparent 1.7px);background-size:293px 237px;mask-image:linear-gradient(transparent,black 16%,rgba(0,0,0,.7) 48%,rgba(0,0,0,.25) 76%,transparent);opacity:.4;filter:drop-shadow(0 0 2px rgba(209,228,255,.4))}
+.main--active .explore-section::before{animation:starfield-shimmer 5.3s ease-in-out -2s infinite}
+@media(prefers-reduced-motion:reduce){.main--active .explore-section::before{animation:none;opacity:.4}}
+@media(prefers-reduced-motion:reduce){.main--active .hero::before,.main--active .hero::after{animation:none;opacity:.4}}
+.hero>.hero-fireflies{inset:0;z-index:0}
+.hero-copy,.hero-artwork{position:relative;z-index:1}
+.hero-fireflies i{width:2px;height:2px;background:#f5dba0;box-shadow:0 0 5px rgba(255,221,146,.7)}
+.hero-fireflies i:nth-child(-n+17),.hero-fireflies i:nth-child(23){background:#e7f0ff;box-shadow:0 0 6px rgba(218,232,255,.9),0 0 16px rgba(172,198,235,.45)}
+.hero-fireflies i:nth-child(-n+17)::after,.hero-fireflies i:nth-child(23)::after{background:radial-gradient(circle,#fff 0%,rgba(222,236,255,.85) 22%,transparent 68%)}
+.main--active .hero-fireflies i:nth-child(-n+17)::after,.main--active .hero-fireflies i:nth-child(23)::after{animation-name:silver-firefly-twinkle}
+@keyframes silver-firefly-twinkle{0%,100%{opacity:.15;transform:scale(.65);filter:drop-shadow(0 0 2px #b7c8e2)}38%{opacity:1;transform:scale(1.5);filter:drop-shadow(0 0 6px #e2edff)}65%{opacity:.3;transform:scale(.8);filter:drop-shadow(0 0 2px #b7c8e2)}}
+.hero-copy::before{content:"";position:absolute;inset:-35px -20px;z-index:-1;pointer-events:none;background:radial-gradient(ellipse,rgba(183,206,239,.065),transparent 70%);opacity:.5}
+.main--active .hero-copy::before{animation:silver-ambient-breathe 7s ease-in-out infinite}
+@keyframes silver-ambient-breathe{0%,100%{opacity:.35}50%{opacity:.85}}
+@media(prefers-reduced-motion:reduce){.main--active .hero-copy::before{animation:none;opacity:.5}}
+.portrait-dust i::after{content:"";position:absolute;inset:-2px;border-radius:50%;background:radial-gradient(circle,#fff9e1 0%,rgba(255,226,156,.8) 22%,transparent 68%);opacity:.3;transform:scale(.7)}
+.main--active .portrait-dust i::after{animation:portrait-dust-twinkle 1.6s ease-in-out var(--delay,0s) infinite}
+.main--active .portrait-dust i:nth-child(3n)::after{animation-duration:2.1s}
+.main--active .portrait-dust i:nth-child(2n)::after{animation-duration:1.3s}
+@keyframes portrait-dust-twinkle{0%,100%{opacity:.15;transform:scale(.65);filter:drop-shadow(0 0 1px #dca451)}38%{opacity:1;transform:scale(1.35);filter:drop-shadow(0 0 4px #ffe6a5)}65%{opacity:.3;transform:scale(.8);filter:drop-shadow(0 0 1px #dca451)}}
 .main--active .portrait-dust i{animation:portrait-dust-drift var(--duration,7s) ease-out var(--delay,0s) infinite}
-@keyframes portrait-dust-drift{0%{opacity:0;transform:translate(0,0) scale(.65)}22%{opacity:.5}60%{opacity:.3}100%{opacity:0;transform:translate(var(--dx),var(--dy)) scale(.2)}}
-@media(max-width:760px){.portrait-dust i:nth-child(even){display:none}}
+@keyframes portrait-dust-drift{0%{opacity:0;transform:translate(0,0) scale(.8)}18%{opacity:.95}45%{opacity:.8}75%{opacity:.55}100%{opacity:0;transform:translate(calc(var(--dx) * 2.8),calc(var(--dy) * 1.8)) scale(.5)}}
 @media(prefers-reduced-motion:reduce){.portrait-dust{display:none}}
 .hero-artwork{width:100%;max-width:480px;margin:0;justify-self:center}
 .portrait-caption{max-width:390px;margin:14px auto 0;padding:0 16px;text-align:center;color:#bdc5d2;font-size:13px;line-height:1.8;word-break:keep-all}
@@ -230,6 +275,32 @@ button:focus-visible,a:focus-visible{outline:2px solid #d7bd92;outline-offset:5p
         <a class="start-learning-button" href="#start-learning">학습 시작하기 <span aria-hidden="true">↗</span></a>
       </header>
       <section class="hero" aria-label="메인 화면">
+        <span class="portrait-dust hero-fireflies" aria-hidden="true">
+          <i style="--x:3%;--y:20%;--dx:12px;--dy:-18px;--delay:-2s;--duration:10s"></i>
+          <i style="--x:12%;--y:27%;--dx:-8px;--dy:-15px;--delay:-6s;--duration:11s"></i>
+          <i style="--x:22%;--y:17%;--dx:9px;--dy:-18px;--delay:-4s;--duration:9s"></i>
+          <i style="--x:35%;--y:24%;--dx:-12px;--dy:-16px;--delay:-7s;--duration:12s"></i>
+          <i style="--x:46%;--y:16%;--dx:8px;--dy:-20px;--delay:-3s;--duration:10s"></i>
+          <i style="--x:7%;--y:39%;--dx:-9px;--dy:-18px;--delay:-5s;--duration:11s"></i>
+          <i style="--x:18%;--y:36%;--dx:12px;--dy:-14px;--delay:-1s;--duration:9s"></i>
+          <i style="--x:30%;--y:43%;--dx:-8px;--dy:-18px;--delay:-8s;--duration:12s"></i>
+          <i style="--x:43%;--y:38%;--dx:10px;--dy:-16px;--delay:-4.5s;--duration:10s"></i>
+          <i style="--x:4%;--y:58%;--dx:8px;--dy:-20px;--delay:-6.5s;--duration:11s"></i>
+          <i style="--x:16%;--y:55%;--dx:-10px;--dy:-14px;--delay:-2.5s;--duration:10s"></i>
+          <i style="--x:27%;--y:62%;--dx:8px;--dy:-18px;--delay:-7.5s;--duration:12s"></i>
+          <i style="--x:39%;--y:57%;--dx:-12px;--dy:-16px;--delay:-3.5s;--duration:11s"></i>
+          <i style="--x:48%;--y:68%;--dx:9px;--dy:-20px;--delay:-5.5s;--duration:10s"></i>
+          <i style="--x:9%;--y:78%;--dx:10px;--dy:-15px;--delay:-1.5s;--duration:9s"></i>
+          <i style="--x:23%;--y:83%;--dx:-8px;--dy:-20px;--delay:-6.8s;--duration:12s"></i>
+          <i style="--x:37%;--y:76%;--dx:12px;--dy:-16px;--delay:-4.2s;--duration:10s"></i>
+          <i style="--x:58%;--y:82%;--dx:-9px;--dy:-18px;--delay:-3.2s;--duration:11s"></i>
+          <i style="--x:70%;--y:91%;--dx:8px;--dy:-14px;--delay:-7.2s;--duration:12s"></i>
+          <i style="--x:83%;--y:87%;--dx:-12px;--dy:-18px;--delay:-2.2s;--duration:10s"></i>
+          <i style="--x:94%;--y:81%;--dx:-8px;--dy:-16px;--delay:-5.2s;--duration:11s"></i>
+          <i style="--x:61%;--y:64%;--dx:10px;--dy:-20px;--delay:-8.2s;--duration:12s"></i>
+          <i style="--x:54%;--y:32%;--dx:-9px;--dy:-16px;--delay:-1.2s;--duration:9s"></i>
+          <i style="--x:91%;--y:12%;--dx:-10px;--dy:-18px;--delay:-4.8s;--duration:10s"></i>
+        </span>
         <div class="hero-copy">
           <p class="eyebrow"><span class="line"></span> YOUR PERSONAL AI LEARNING PARTNER</p>
           <div class="binary-title" id="binaryTitle" aria-label="AI DevCoach">
@@ -245,6 +316,26 @@ button:focus-visible,a:focus-visible{outline:2px solid #d7bd92;outline-offset:5p
         <figure class="hero-artwork">
         <div class="hero-portrait" role="img" aria-label="금색 액자 속 에이다 러브레이스의 초상화" aria-describedby="ada-caption">
           <span class="portrait-dust" aria-hidden="true">
+            <i style="--x:8%;--y:18%;--dx:-12px;--dy:-18px;--delay:-3.2s;--duration:9s"></i>
+            <i style="--x:12%;--y:34%;--dx:-16px;--dy:-22px;--delay:-6.1s;--duration:8s"></i>
+            <i style="--x:6%;--y:55%;--dx:9px;--dy:-18px;--delay:-1.8s;--duration:10s"></i>
+            <i style="--x:10%;--y:68%;--dx:-12px;--dy:-26px;--delay:-4.7s;--duration:9s"></i>
+            <i style="--x:9%;--y:85%;--dx:12px;--dy:-20px;--delay:-7.3s;--duration:10s"></i>
+            <i style="--x:91%;--y:15%;--dx:12px;--dy:-19px;--delay:-2.4s;--duration:8s"></i>
+            <i style="--x:88%;--y:32%;--dx:14px;--dy:-24px;--delay:-5.6s;--duration:9s"></i>
+            <i style="--x:94%;--y:47%;--dx:-8px;--dy:-18px;--delay:-.8s;--duration:10s"></i>
+            <i style="--x:90%;--y:66%;--dx:14px;--dy:-22px;--delay:-6.8s;--duration:9s"></i>
+            <i style="--x:92%;--y:84%;--dx:-9px;--dy:-28px;--delay:-3.9s;--duration:10s"></i>
+            <i style="--x:19%;--y:8%;--dx:-12px;--dy:-16px;--delay:-2.8s;--duration:8s"></i>
+            <i style="--x:34%;--y:6%;--dx:-9px;--dy:-18px;--delay:-5.3s;--duration:9s"></i>
+            <i style="--x:51%;--y:5%;--dx:7px;--dy:-15px;--delay:-1.2s;--duration:8s"></i>
+            <i style="--x:70%;--y:7%;--dx:12px;--dy:-17px;--delay:-6.4s;--duration:9s"></i>
+            <i style="--x:82%;--y:9%;--dx:14px;--dy:-18px;--delay:-4.2s;--duration:8s"></i>
+            <i style="--x:14%;--y:44%;--dx:-20px;--dy:-14px;--delay:-3.6s;--duration:11s"></i>
+            <i style="--x:86%;--y:54%;--dx:20px;--dy:-16px;--delay:-7.8s;--duration:11s"></i>
+            <i style="--x:16%;--y:88%;--dx:-14px;--dy:-24px;--delay:-5.1s;--duration:9s"></i>
+            <i style="--x:84%;--y:90%;--dx:14px;--dy:-26px;--delay:-2.1s;--duration:10s"></i>
+            <i style="--x:48%;--y:11%;--dx:10px;--dy:-22px;--delay:-6.7s;--duration:9s"></i>
             <i style="--x:18%;--y:27%;--dx:-24px;--dy:-36px;--delay:-1s;--duration:7s"></i>
             <i style="--x:23%;--y:12%;--dx:-14px;--dy:-38px;--delay:-4s;--duration:8s"></i>
             <i style="--x:42%;--y:10%;--dx:-8px;--dy:-36px;--delay:-2s;--duration:6.5s"></i>
@@ -270,7 +361,24 @@ button:focus-visible,a:focus-visible{outline:2px solid #d7bd92;outline-offset:5p
       <section id="start-learning" class="explore-section" aria-label="서비스 소개 및 회원가입 안내" tabindex="-1">
         <div class="explore-line" aria-hidden="true"><span>INTRO</span><i></i><span>START</span></div>
         <p class="explore-kicker">BEGIN YOUR LEARNING JOURNEY</p>
-        <h2>배움의 다음 단계,<br>나에게 맞는 학습에서 시작됩니다.</h2>
+        <h2 class="glitter-heading">배움의 다음 단계,<br>나에게 맞는 학습에서 시작됩니다.
+          <span class="heading-glitter" aria-hidden="true">
+            <i style="--x:4%;--y:18%;--delay:-1s;--speed:4.1s"></i>
+            <i style="--x:17%;--y:5%;--delay:-2.8s;--speed:3.7s"></i>
+            <i style="--x:37%;--y:9%;--delay:-.4s;--speed:4.5s"></i>
+            <i style="--x:61%;--y:7%;--delay:-3.1s;--speed:4.2s"></i>
+            <i style="--x:84%;--y:16%;--delay:-1.8s;--speed:3.9s"></i>
+            <i style="--x:97%;--y:37%;--delay:-2.2s;--speed:4.8s"></i>
+            <i style="--x:6%;--y:51%;--delay:-3.6s;--speed:4.4s"></i>
+            <i style="--x:46%;--y:48%;--delay:-1.3s;--speed:5.1s"></i>
+            <i style="--x:74%;--y:49%;--delay:-2.5s;--speed:4.3s"></i>
+            <i style="--x:2%;--y:83%;--delay:-.8s;--speed:4.7s"></i>
+            <i style="--x:24%;--y:94%;--delay:-3.2s;--speed:4s"></i>
+            <i style="--x:54%;--y:92%;--delay:-1.7s;--speed:4.6s"></i>
+            <i style="--x:79%;--y:95%;--delay:-.3s;--speed:3.8s"></i>
+            <i style="--x:96%;--y:86%;--delay:-2.9s;--speed:4.9s"></i>
+          </span>
+        </h2>
         <p>AI DevCoach는 학습 목표와 수준을 바탕으로<br>나만의 학습 경로를 설계하는 학습 플랫폼입니다.</p>
         <div class="learning-steps" aria-label="학습 시작 단계">
           <div><span>01</span><strong>계정 만들기</strong><small>학습 기록을 관리할 준비</small></div>
