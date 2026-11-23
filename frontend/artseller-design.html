@@ -54,6 +54,15 @@ button:focus-visible,a:focus-visible{outline:2px solid #d7bd92;outline-offset:5p
 @media(prefers-reduced-motion:reduce){.intro.is-whitening .portrait-stage,.intro.is-whitening .white-flash,.portal-canvas{transition:none}}
 .main-content{min-height:100svh;background:radial-gradient(ellipse 65% 60% at 78% 37%,#242735 0%,#111725 50%,#090c15 100%);opacity:0;transform:translateY(15px);transition:opacity 1.05s ease,transform 1.05s ease}
 .main-content.main--active{opacity:1;transform:none}
+.perimeter-light{position:fixed;inset:clamp(10px,1.8vw,28px);width:calc(100% - clamp(20px,3.6vw,56px));height:calc(100% - clamp(20px,3.6vw,56px));z-index:0;overflow:visible;pointer-events:none;color:#d9b778;opacity:0;transition:opacity 1.8s ease .5s}
+.main--active .perimeter-light{opacity:1}
+.perimeter-light rect{fill:none;stroke:#f5cf86;stroke-width:1;vector-effect:non-scaling-stroke;stroke-linecap:butt;stroke-dasharray:18 82;filter:drop-shadow(0 0 3px #e8b55c);animation:perimeter-drift 8s linear infinite alternate,perimeter-twinkle 1.8s ease-in-out infinite}
+.perimeter-light .perimeter-echo{stroke-dasharray:7 93;animation-delay:-4s,-.9s;animation-direction:alternate-reverse,normal}
+.main-inner{position:relative;z-index:1}
+@keyframes perimeter-drift{from{stroke-dashoffset:12}to{stroke-dashoffset:-88}}
+@keyframes perimeter-twinkle{0%,100%{opacity:.55;stroke:#e4b45e}35%,72%{opacity:1;stroke:#fff2c7}55%{opacity:.7;stroke:#f5cf86}}
+@media(max-width:760px){.perimeter-light rect{stroke-width:.8}.main--active .perimeter-light{opacity:.85}}
+@media(prefers-reduced-motion:reduce){.perimeter-light{display:none}}
 .main-inner{max-width:1450px;padding:0 clamp(24px,6vw,100px);min-height:100svh;margin:auto;display:flex;flex-direction:column}
 .main-header{display:flex;align-items:center;justify-content:space-between;padding:34px 0;border-bottom:1px solid var(--border)}
 .brand{color:#e5e7eb;text-decoration:none;display:flex;align-items:center;gap:13px;letter-spacing:.15em;font-size:12px;font-weight:500}
@@ -201,6 +210,10 @@ button:focus-visible,a:focus-visible{outline:2px solid #d7bd92;outline-offset:5p
 </head>
 <body class="intro-locked">
   <main id="mainContent" class="main-content" inert aria-hidden="true">
+    <svg class="perimeter-light" aria-hidden="true" focusable="false">
+      <rect x="0" y="0" width="100%" height="100%" rx="3" pathLength="100"/>
+      <rect class="perimeter-echo" x="0" y="0" width="100%" height="100%" rx="3" pathLength="100"/>
+    </svg>
     <div class="main-inner">
       <header class="main-header">
         <a class="brand" href="#mainContent" aria-label="AI DevCoach 메인으로 이동"><span>AI <b>DevCoach</b></span></a>
