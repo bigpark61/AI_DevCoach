@@ -189,7 +189,7 @@ button:focus-visible,a:focus-visible{outline:2px solid #d7bd92;outline-offset:5p
 /* Main page: the portrait sits precisely inside the transparent
    opening of the gilded Rococo frame, with no black square border. */
 .hero-portrait{position:relative!important;width:min(100%,480px)!important;max-width:480px!important;aspect-ratio:1122 / 1402;justify-self:center;box-shadow:none!important;filter:drop-shadow(0 22px 18px rgba(0,0,0,.27))}
-.hero-portrait .hero-photo{position:absolute;left:17.8%;top:19.0%;width:64.3%;height:64%;object-fit:cover;object-position:center;aspect-ratio:auto;z-index:1;display:block}
+.hero-portrait .hero-photo{position:absolute;left:17.2%;top:18.5%;width:65.5%;height:65%;object-fit:cover;object-position:center;aspect-ratio:auto;z-index:1;display:block}
 .hero-portrait .baroque-overlay{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;z-index:2;display:block;pointer-events:none}
 .hero-portrait .portrait-index{display:none}
 .hero-portrait::before{content:"";position:absolute;inset:-6% -10%;z-index:0;pointer-events:none;border-radius:45%;background:radial-gradient(ellipse at 50% 48%,rgba(226,204,162,.19) 0%,rgba(199,177,145,.16) 40%,rgba(181,163,145,.09) 58%,transparent 76%);filter:blur(24px);opacity:.65;transform:scale(.98)}
@@ -311,6 +311,21 @@ button:focus-visible,a:focus-visible{outline:2px solid #d7bd92;outline-offset:5p
 .signup-panel{position:relative;isolation:isolate;border-bottom:0;box-shadow:inset 0 9px 18px -14px rgba(155,203,255,.65),inset 0 -12px 22px -14px rgba(66,148,255,.24)}
 .signup-panel::after{content:"";position:absolute;left:-1%;right:-1%;bottom:-2px;height:5px;pointer-events:none;background:linear-gradient(90deg,transparent,rgba(102,180,255,.35) 5%,#75baff 18%,#94ccff 50%,#75baff 82%,rgba(102,180,255,.35) 95%,transparent);filter:blur(1.6px);border-radius:50%}
 .signup-panel::before{content:"";position:absolute;left:-3%;right:-3%;bottom:-15px;height:30px;z-index:-1;pointer-events:none;background:radial-gradient(ellipse,rgba(82,166,255,.4),rgba(45,108,223,.16) 45%,transparent 74%);filter:blur(8px)}
+.learning-guide,.signup-panel{background:radial-gradient(ellipse at 50% 0,rgba(65,124,213,.12),transparent 78%);border-top:2px solid transparent;border-image:linear-gradient(90deg,transparent,rgba(115,170,239,.45) 16%,rgba(139,191,255,.6) 50%,rgba(115,170,239,.45) 84%,transparent) 1;box-shadow:inset 0 12px 22px -20px rgba(151,197,255,.5)}
+.learning-guide{border-bottom:1px solid transparent;margin-bottom:4px}
+.signup-panel{border-bottom:0;padding-top:30px;gap:18px}
+.signup-panel::after{left:0;right:0;height:4px;background:linear-gradient(90deg,transparent,rgba(102,180,255,.2) 10%,rgba(117,186,255,.65) 28%,#94ccff 50%,rgba(117,186,255,.65) 72%,rgba(102,180,255,.2) 90%,transparent);filter:blur(1.8px)}
+.signup-panel::before{left:0;right:0;bottom:-12px;height:24px;background:radial-gradient(ellipse,rgba(82,166,255,.3),rgba(45,108,223,.1) 45%,transparent 74%);filter:blur(8px)}
+/* Blend the warm introduction into the cooler learning section. */
+.explore-line i{background:linear-gradient(90deg,transparent,rgba(210,183,137,.65) 25%,rgba(199,207,218,.7) 55%,rgba(117,169,235,.6) 80%,transparent)}
+.learning-guide,.signup-panel{border-image:linear-gradient(90deg,transparent,rgba(115,170,239,.32) 16%,rgba(184,202,224,.5) 50%,rgba(115,170,239,.32) 84%,transparent) 1;background:radial-gradient(ellipse at 50% 0,rgba(78,123,185,.1),transparent 80%);box-shadow:inset 0 10px 22px -20px rgba(175,199,229,.4)}
+.learning-guide{margin-top:16px;padding-top:26px;padding-bottom:26px}
+.signup-panel{padding-top:30px;padding-bottom:32px;gap:20px}
+.signup-panel strong{color:#dfe9f7;font-weight:600;letter-spacing:-.025em}
+.signup-action{background:linear-gradient(135deg,#3475df,#2d6cdf);box-shadow:0 5px 20px rgba(45,108,223,.17)}
+.signup-panel::after{opacity:.85}
+.signup-panel::before{opacity:.8}
+@media(max-width:760px){.signup-panel{padding:26px 16px 30px}}
 </style>
 </head>
 <body class="intro-locked">
