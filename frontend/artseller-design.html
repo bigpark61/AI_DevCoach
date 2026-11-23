@@ -59,6 +59,13 @@ button:focus-visible,a:focus-visible{outline:2px solid #d7bd92;outline-offset:5p
 .perimeter-light rect{fill:none;stroke:#f5cf86;stroke-width:1;vector-effect:non-scaling-stroke;stroke-linecap:butt;stroke-dasharray:18 82;filter:drop-shadow(0 0 3px #e8b55c);animation:perimeter-drift 8s linear infinite alternate,perimeter-twinkle 1.8s ease-in-out infinite}
 .perimeter-light .perimeter-echo{stroke-dasharray:7 93;animation-delay:-4s,-.9s;animation-direction:alternate-reverse,normal}
 .main-inner{position:relative;z-index:1}
+.stage-spotlight{position:absolute;top:-120px;left:50%;transform:translateX(-50%);width:min(150%,calc(100vw - 32px));height:650px;z-index:0;pointer-events:none;opacity:0;transition:opacity 2.4s ease 1s;filter:blur(12px);overflow:hidden}
+.stage-spotlight::before{content:"";position:absolute;inset:0;background:conic-gradient(from 0deg at 50% 0%,transparent 0deg 132deg,rgba(245,231,201,.025) 140deg,rgba(250,237,210,.09) 155deg,rgba(255,245,223,.2) 180deg,rgba(250,237,210,.09) 205deg,rgba(245,231,201,.025) 220deg,transparent 228deg 360deg);mask-image:radial-gradient(ellipse 75% 105% at 50% 0%,black 0%,rgba(0,0,0,.85) 28%,rgba(0,0,0,.4) 60%,transparent 95%)}
+.stage-spotlight::after{content:"";position:absolute;top:-10px;left:50%;transform:translateX(-50%);width:36px;height:32px;border-radius:50%;background:radial-gradient(ellipse,rgba(255,245,220,.55),rgba(255,235,185,.12) 40%,transparent 72%)}
+.main--active .stage-spotlight{opacity:1}
+.main-header,.hero,.explore-section,.main-footer{position:relative;z-index:1}
+@media(max-width:760px){.stage-spotlight{top:-85px;height:560px;filter:blur(10px)}}
+@media(prefers-reduced-motion:reduce){.stage-spotlight{transition:none}}
 @keyframes perimeter-drift{from{stroke-dashoffset:12}to{stroke-dashoffset:-88}}
 @keyframes perimeter-twinkle{0%,100%{opacity:.55;stroke:#e4b45e}35%,72%{opacity:1;stroke:#fff2c7}55%{opacity:.7;stroke:#f5cf86}}
 @media(max-width:760px){.perimeter-light rect{stroke-width:.8}.main--active .perimeter-light{opacity:.85}}
@@ -314,6 +321,7 @@ button:focus-visible,a:focus-visible{outline:2px solid #d7bd92;outline-offset:5p
           </div>
         </div>
         <figure class="hero-artwork">
+          <span class="stage-spotlight" aria-hidden="true"></span>
         <div class="hero-portrait" role="img" aria-label="금색 액자 속 에이다 러브레이스의 초상화" aria-describedby="ada-caption">
           <span class="portrait-dust" aria-hidden="true">
             <i style="--x:8%;--y:18%;--dx:-12px;--dy:-18px;--delay:-3.2s;--duration:9s"></i>
