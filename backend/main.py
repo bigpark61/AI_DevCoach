@@ -3168,26 +3168,6 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
                 ),
             )
         return {**result, "sources": sources}
-        sources = list(retrieved_sources.values())
-        created_at = _utcnow().isoformat()
-        with connect() as db:
-            db.execute(
-                "INSERT INTO agent_chat_messages(user_id,role,content,sources_json,created_at) "
-                "VALUES(?,?,?,?,?)",
-                (user["id"], "user", payload.message, "[]", created_at),
-            )
-            db.execute(
-                "INSERT INTO agent_chat_messages(user_id,role,content,sources_json,created_at) "
-                "VALUES(?,?,?,?,?)",
-                (
-                    user["id"],
-                    "assistant",
-                    result["reply"],
-                    json.dumps(sources, ensure_ascii=False),
-                    created_at,
-                ),
-            )
-        return {**result, "sources": sources}
 
     @app.post("/api/plans/{plan_id}/revision-request", status_code=201)
     def request_plan_revision(
@@ -3224,7 +3204,7 @@ def create_app(database_path: str | Path | None = None) -> FastAPI:
 
     @app.get("/api/artseller-intro", include_in_schema=False)
     def artseller_intro() -> FileResponse:
-        return FileResponse(ROOT / "artseller-design.html", media_type="text/html")
+        return FileResponse(FRONTEND / "artseller-design.html", media_type="text/html")
 
     return app
 

@@ -35,6 +35,13 @@ class DevCoachFlowTests(unittest.TestCase):
         self.client.close()
         self.temp_dir.cleanup()
 
+    def test_artseller_intro_is_served_from_frontend(self):
+        response = self.client.get("/api/artseller-intro")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("AI DevCoach", response.text)
+        self.assertIn("Binary Passage", response.text)
+
     def signup(self, email="learner@example.com"):
         return self.client.post(
             "/api/auth/signup",

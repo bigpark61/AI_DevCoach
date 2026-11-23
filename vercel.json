@@ -3,7 +3,10 @@
   "framework": "fastapi",
   "functions": {
     "backend/main.py": {
-      "includeFiles": "backend/knowledge/**"
+      "includeFiles": [
+        "backend/knowledge/**",
+        "frontend/**"
+      ]
     }
   }
 }
