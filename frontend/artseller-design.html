@@ -167,9 +167,9 @@ button:focus-visible,a:focus-visible{outline:2px solid #d7bd92;outline-offset:5p
    Baroque gilded portrait: golden carving is a separate
    transparent PNG, so the user-supplied portrait stays intact.
    ======================================================== */
-.intro{--baroque-width:min(92vw,71vh,600px)}
-.intro:not(.is-whitening) .portrait-stage{transition:width .92s cubic-bezier(.2,.8,.2,1),filter .55s ease,opacity .55s ease,transform .55s ease}
-.intro.is-framed .portrait-stage{width:min(58.4vw,45.1vh,381px)!important}
+.intro{--baroque-width:min(92vw,71vh,600px);--frame-top:49%}
+.intro:not(.is-whitening) .portrait-stage{transition:width .92s cubic-bezier(.2,.8,.2,1),top .92s cubic-bezier(.2,.8,.2,1),left .92s cubic-bezier(.2,.8,.2,1),filter .55s ease,opacity .55s ease,transform .55s ease}
+.intro.is-framed .portrait-stage{width:calc(var(--baroque-width) * .655)!important;left:calc(50% - var(--baroque-width) * .003);top:calc(var(--frame-top) + var(--baroque-width) * .0174)}
 .intro-gold-frame{
  position:absolute;z-index:4;left:50%;top:49%;width:var(--baroque-width);
  aspect-ratio:1122/1402;height:auto;object-fit:contain;pointer-events:none;
@@ -237,12 +237,11 @@ button:focus-visible,a:focus-visible{outline:2px solid #d7bd92;outline-offset:5p
 .portrait-caption p{margin:10px 0 0}
 .portrait-caption p[lang="en"]{font-size:12px;color:#aab5c6;word-break:normal}
 @media(max-width:760px){
- .intro{--baroque-width:min(94vw,69vh,490px)}
- .intro.is-framed .portrait-stage{width:min(59.7vw,43.8vh,311px)!important}
+ .intro{--baroque-width:min(94vw,69vh,490px);--frame-top:50%}
  .intro-gold-frame{top:50%}
  .hero-portrait{max-width:min(90vw,450px)!important}
 }
-@media(max-width:390px){.intro-gold-frame{top:49%}}
+@media(max-width:390px){.intro{--frame-top:49%}.intro-gold-frame{top:49%}}
 
 
 /* Navigation: clear action instead of decorative header metadata. */
